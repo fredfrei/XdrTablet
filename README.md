@@ -1,8 +1,15 @@
+
 # XDR Tablet – Linux-Prototyp
 
 Qt-Quick-Client für einen xdrd-kompatiblen TCP-Server. Die Anwendung verbindet
 sich direkt mit dem ESP32/xdrd und benötigt keine WebSocket-Brücke.
+# XdrTablet
 
+Plattformübergreifender TCP-Client für einen XDR-kompatiblen FM-Tuner.
+
+## Oberfläche
+
+![XdrTablet im CT-610-Design](screenshots/XdrTablet-CT610.png)
 ## Enthalten
 
 - xdrd-Anmeldung mit SHA-1 aus Salt und Passwort
