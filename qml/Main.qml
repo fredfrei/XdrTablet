@@ -5,12 +5,22 @@ import QtCore
 
 ApplicationWindow {
     id: window
-    width: 1180
-    height: 1000
-    minimumWidth: 700
-    minimumHeight: 700
+    width: 1280
+    height: 820
+    minimumWidth: 900
+    minimumHeight: 640
     visible: true
-    title: "XDR Tablet"
+    title: "XDR CT-610"
+
+    property color aluminiumLight: "#eeeeea"
+    property color aluminiumMid: "#c9c9c3"
+    property color aluminiumDark: "#9e9e98"
+    property color ink: "#262620"
+    property color mutedInk: "#686861"
+    property color scaleGlass: "#d8d8cc"
+    property color amber: "#b66c27"
+    property color woodDark: "#4b2d1d"
+    property color woodLight: "#795039"
 
     property var bandwidthValues: [0, 56000, 64000, 72000, 84000, 97000,
                                    114000, 133000, 151000, 168000, 184000,
@@ -24,12 +34,23 @@ ApplicationWindow {
         return index >= 0 ? index : 0
     }
 
-    function stepLabel(khz) {
-        return khz >= 1000 ? (khz / 1000) + " MHz" : khz + " kHz"
+    function bandwidthLabel(hz) {
+        return hz > 0 ? Math.round(hz / 1000) + " kHz" : "Auto"
     }
 
-    function bandwidthLabel(hz) {
-        return hz > 0 ? Math.round(hz / 1000) + " kHz" : "–"
+    function connectOrDisconnect() {
+        if (xdrClient.connected)
+            xdrClient.disconnectFromServer()
+        else
+            xdrClient.connectToServer(hostField.text,
+                                      Number(portField.text),
+                                      passwordField.text)
+    }
+
+    function qualityValue() {
+        if (xdrClient.cci < 0 || xdrClient.aci < 0)
+            return 0
+        return Math.max(0, Math.min(100, (xdrClient.cci + xdrClient.aci) / 2))
     }
 
     Settings {
@@ -38,283 +59,142 @@ ApplicationWindow {
         property alias password: passwordField.text
     }
 
-    background: Rectangle { color: "#202020"}
+    Shortcut {
+        sequence: "Left"
+        enabled: xdrClient.ready && !xdrClient.seeking
+        onActivated: xdrClient.stepSmall(-1)
+    }
+    Shortcut {
+        sequence: "Right"
+        enabled: xdrClient.ready && !xdrClient.seeking
+        onActivated: xdrClient.stepSmall(1)
+    }
+    Shortcut {
+        sequence: "Shift+Left"
+        enabled: xdrClient.ready && !xdrClient.seeking
+        onActivated: xdrClient.stepLarge(-1)
+    }
+    Shortcut {
+        sequence: "Shift+Right"
+        enabled: xdrClient.ready && !xdrClient.seeking
+        onActivated: xdrClient.stepLarge(1)
+    }
+    Shortcut {
+        sequence: "Escape"
+        enabled: xdrClient.seeking
+        onActivated: xdrClient.stopSeek()
+    }
 
-    ScrollView {
-        anchors.fill: parent
-        contentWidth: availableWidth
-        clip: true
+    background: Rectangle {
+        color: "#2d2018"
+        gradient: Gradient {
+            orientation: Gradient.Horizontal
+            GradientStop { position: 0.0; color: window.woodDark }
+            GradientStop { position: 0.12; color: window.woodLight }
+            GradientStop { position: 0.5; color: "#5e3b28" }
+            GradientStop { position: 0.88; color: window.woodLight }
+            GradientStop { position: 1.0; color: window.woodDark }
+        }
+    }
 
-        ColumnLayout {
-            width: parent.width
-            spacing: 16
+    Drawer {
+        id: settingsDrawer
+        edge: Qt.RightEdge
+        width: Math.min(window.width * 0.44, 520)
+        height: window.height
+        modal: true
 
-            Item { Layout.preferredHeight: 6 }
+        background: Rectangle {
+            color: "#deded8"
+            border.color: "#777770"
+        }
 
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.leftMargin: 22
-                Layout.rightMargin: 22
-                spacing: 10
+        ScrollView {
+            anchors.fill: parent
+            contentWidth: availableWidth
+            clip: true
 
-                TextField {
-                    id: hostField
-                    Layout.fillWidth: true
-                    placeholderText: "IP-Adresse"
-                    text: "10.193.149.131"
-                    inputMethodHints: Qt.ImhUrlCharactersOnly
-                }
-                TextField {
-                    id: portField
-                    Layout.preferredWidth: 105
-                    placeholderText: "Port"
-                    text: "7373"
-                    inputMethodHints: Qt.ImhDigitsOnly
-                }
-                TextField {
-                    id: passwordField
-                    Layout.preferredWidth: 170
-                    placeholderText: "XDR-Passwort"
-                    text: ""
-                    echoMode: TextInput.Password
-                    passwordCharacter: "●"
-                }
-                Button {
-                    text: xdrClient.connected ? "Trennen" : "Verbinden"
-                    onClicked: xdrClient.connected
-                               ? xdrClient.disconnectFromServer()
-                               : xdrClient.connectToServer(hostField.text,
-                                                           Number(portField.text),
-                                                           passwordField.text)
-                }
-            }
-
-            Label {
-                Layout.alignment: Qt.AlignHCenter
-                text: (xdrClient.frequencyKhz / 1000).toFixed(3) + " MHz"
-                font.pixelSize: Math.min(window.width * 0.078, 82)
-                font.bold: true
-                color: "white"
-            }
-
-            RowLayout {
-                Layout.alignment: Qt.AlignHCenter
-                spacing: 16
+            ColumnLayout {
+                width: parent.width
+                spacing: 14
 
                 Label {
-                    text: xdrClient.ready ? "● " + xdrClient.statusText
-                                          : (xdrClient.connected
-                                             ? "◐ " + xdrClient.statusText
-                                             : "○ " + xdrClient.statusText)
-                    color: xdrClient.ready ? "#6ee7a8"
-                                           : (xdrClient.connected ? "#ffd27a"
-                                                                  : "#ff9d9d")
-                    font.pixelSize: 18
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 20
+                    Layout.rightMargin: 20
+                    Layout.topMargin: 18
+                    text: "XDR · EINSTELLUNGEN"
+                    color: window.ink
+                    font.pixelSize: 22
+                    font.bold: true
                 }
 
                 Rectangle {
-                    radius: 8
-                    implicitWidth: modeLabel.implicitWidth + 24
-                    implicitHeight: modeLabel.implicitHeight + 12
-                    color: xdrClient.stereo && !xdrClient.forcedMono
-                           ? "#185c42" : "#293642"
-                    border.color: xdrClient.stereo && !xdrClient.forcedMono
-                                  ? "#6ee7a8" : "#506173"
-                    Label {
-                        id: modeLabel
-                        anchors.centerIn: parent
-                        text: xdrClient.receptionModeText
-                        color: "white"
-                        font.bold: true
-                    }
-                }
-
-                Rectangle {
-                    radius: 8
-                    implicitWidth: rdsStatusLabel.implicitWidth + 24
-                    implicitHeight: rdsStatusLabel.implicitHeight + 12
-                    color: xdrClient.rdsActive ? "#184f5c" : "#293642"
-                    border.color: xdrClient.rdsActive ? "#72d7ef" : "#506173"
-                    Label {
-                        id: rdsStatusLabel
-                        anchors.centerIn: parent
-                        text: xdrClient.rdsActive ? "RDS" : "RDS –"
-                        color: xdrClient.rdsActive ? "#a6ebff" : "#7f93a8"
-                        font.bold: true
-                    }
-                }
-            }
-
-            Frame {
-                Layout.fillWidth: true
-                Layout.leftMargin: 22
-                Layout.rightMargin: 22
-                background: Rectangle {
-                    radius: 12
-                    color: "#17202a"
-                    border.color: xdrClient.rdsActive ? "#346a76" : "#2b3a49"
-                }
-
-                ColumnLayout {
-                    anchors.fill: parent
-                    spacing: 10
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Label {
-                            Layout.fillWidth: true
-                            text: xdrClient.psText.length > 0
-                                  ? xdrClient.psText : "Kein Sendername"
-                            color: "white"
-                            font.pixelSize: 29
-                            font.bold: true
-                            horizontalAlignment: Text.AlignHCenter
-                        }
-                    }
-
-                    GridLayout {
-                        Layout.fillWidth: true
-                        columns: window.width < 780 ? 2 : 4
-                        columnSpacing: 18
-                        rowSpacing: 8
-
-                        Label { text: "PI-Code"; color: "#8fa2b8" }
-                        Label {
-                            text: xdrClient.piCode
-                            color: "#dce6f2"
-                            font.pixelSize: 18
-                            font.bold: true
-                        }
-                        Label { text: "PTY"; color: "#8fa2b8" }
-                        Label {
-                            text: xdrClient.ptyCode >= 0
-                                  ? xdrClient.ptyText + " (" + xdrClient.ptyCode + ")"
-                                  : "–"
-                            color: "#dce6f2"
-                            font.pixelSize: 17
-                        }
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.minimumHeight: 76
-                        radius: 8
-                        color: "#101820"
-                        border.color: "#2b3a49"
-                        Label {
-                            anchors.fill: parent
-                            anchors.margins: 12
-                            text: xdrClient.radioText.length > 0
-                                  ? xdrClient.radioText : "Radiotext wird empfangen …"
-                            color: xdrClient.radioText.length > 0 ? "#e5edf5" : "#667b8f"
-                            font.pixelSize: 17
-                            wrapMode: Text.WordWrap
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                    }
-
-                    Label {
-                        Layout.alignment: Qt.AlignRight
-                        text: "RDS-Gruppen: " + xdrClient.rdsGroupCount
-                        color: "#667b8f"
-                        font.pixelSize: 12
-                    }
-                }
-            }
-
-            Frame {
-                Layout.fillWidth: true
-                Layout.leftMargin: 22
-                Layout.rightMargin: 22
-                background: Rectangle {
-                    radius: 12
-                    color: "#17202a"
-                    border.color: "#2b3a49"
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 20
+                    Layout.rightMargin: 20
+                    height: 1
+                    color: "#888881"
                 }
 
                 GridLayout {
-                    anchors.fill: parent
-                    columns: window.width < 850 ? 2 : 4
-                    columnSpacing: 16
-                    rowSpacing: 12
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 20
+                    Layout.rightMargin: 20
+                    columns: 2
+                    columnSpacing: 12
+                    rowSpacing: 10
 
-                    ColumnLayout {
+                    Label { text: "IP-Adresse"; color: window.ink }
+                    TextField {
+                        id: hostField
                         Layout.fillWidth: true
-                        Label { text: "Signal"; color: "#8fa2b8" }
-                        Label {
-                            text: xdrClient.signalAvailable
-                                  ? xdrClient.signalLevel.toFixed(2) : "–"
-                            color: "white"
-                            font.pixelSize: 26
-                            font.bold: true
-                        }
+                        text: "10.193.149.131"
+                        placeholderText: "IP-Adresse"
+                        inputMethodHints: Qt.ImhUrlCharactersOnly
                     }
-                    ColumnLayout {
+
+                    Label { text: "TCP-Port"; color: window.ink }
+                    TextField {
+                        id: portField
                         Layout.fillWidth: true
-                        Label { text: "CCI / ACI"; color: "#8fa2b8" }
-                        Label {
-                            text: (xdrClient.cci >= 0 ? xdrClient.cci + " %" : "–")
-                                  + " / "
-                                  + (xdrClient.aci >= 0 ? xdrClient.aci + " %" : "–")
-                            color: "white"
-                            font.pixelSize: 23
-                            font.bold: true
-                        }
+                        text: "7373"
+                        placeholderText: "Port"
+                        inputMethodHints: Qt.ImhDigitsOnly
                     }
-                    ColumnLayout {
+
+                    Label { text: "Passwort"; color: window.ink }
+                    TextField {
+                        id: passwordField
                         Layout.fillWidth: true
-                        Label { text: "Aktuelle Bandbreite"; color: "#8fa2b8" }
-                        Label {
-                            text: window.bandwidthLabel(xdrClient.bandwidthHz)
-                            color: "white"
-                            font.pixelSize: 23
-                            font.bold: true
-                        }
-                    }
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        Label { text: "Empfang"; color: "#8fa2b8" }
-                        Label {
-                            text: xdrClient.receptionModeText
-                            color: "white"
-                            font.pixelSize: 20
-                            font.bold: true
-                            wrapMode: Text.WordWrap
-                        }
+                        text: ""
+                        placeholderText: "leer möglich"
+                        echoMode: TextInput.Password
+                        passwordCharacter: "●"
                     }
                 }
-            }
 
-            Frame {
-                Layout.fillWidth: true
-                Layout.leftMargin: 22
-                Layout.rightMargin: 22
-                background: Rectangle {
-                    radius: 12
-                    color: "#17202a"
-                    border.color: "#2b3a49"
+                VintageButton {
+                    Layout.alignment: Qt.AlignHCenter
+                    implicitWidth: 230
+                    text: xdrClient.connected ? "VERBINDUNG TRENNEN" : "VERBINDEN"
+                    onClicked: window.connectOrDisconnect()
                 }
 
-                ColumnLayout {
-                    anchors.fill: parent
-                    spacing: 14
-
-                    Label {
-                        text: "Empfangs- und DSP-Einstellungen"
-                        color: "white"
-                        font.pixelSize: 21
-                        font.bold: true
-                    }
+                GroupBox {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 20
+                    Layout.rightMargin: 20
+                    title: "Empfang"
 
                     GridLayout {
-                        Layout.fillWidth: true
-                        columns: window.width < 850 ? 2 : 4
-                        columnSpacing: 14
-                        rowSpacing: 12
+                        anchors.fill: parent
+                        columns: 2
+                        columnSpacing: 12
+                        rowSpacing: 10
 
-                        Label { text: "Stereo / Mono"; color: "#b9c9d8" }
+                        Label { text: "Betriebsart" }
                         Switch {
-                            id: monoSwitch
                             enabled: xdrClient.ready && !xdrClient.seeking
                             text: checked ? "Mono erzwungen" : "Stereo-Automatik"
                             checked: xdrClient.forcedMono
@@ -324,10 +204,10 @@ ApplicationWindow {
                             }
                         }
 
-                        Label { text: "Bandbreite"; color: "#b9c9d8" }
+                        Label { text: "Bandbreite" }
                         ComboBox {
-                            enabled: xdrClient.ready && !xdrClient.seeking
                             Layout.fillWidth: true
+                            enabled: xdrClient.ready && !xdrClient.seeking
                             model: ["Auto", "56 kHz", "64 kHz", "72 kHz", "84 kHz",
                                     "97 kHz", "114 kHz", "133 kHz", "151 kHz",
                                     "168 kHz", "184 kHz", "200 kHz", "217 kHz",
@@ -338,27 +218,26 @@ ApplicationWindow {
                                              window.bandwidthValues[currentIndex])
                         }
 
-                        Label { text: "De-Emphasis"; color: "#b9c9d8" }
+                        Label { text: "De-Emphasis" }
                         ComboBox {
-                            enabled: xdrClient.ready
                             Layout.fillWidth: true
+                            enabled: xdrClient.ready
                             model: ["50 µs", "75 µs", "0 µs"]
                             currentIndex: xdrClient.deemphasis
                             onActivated: xdrClient.setDeemphasis(currentIndex)
                         }
 
-                        Label { text: "AGC-Schwelle"; color: "#b9c9d8" }
+                        Label { text: "AGC-Schwelle" }
                         ComboBox {
-                            enabled: xdrClient.ready
                             Layout.fillWidth: true
+                            enabled: xdrClient.ready
                             model: ["Höchste", "Hoch", "Mittel", "Niedrig"]
                             currentIndex: xdrClient.agc
                             onActivated: xdrClient.setAgc(currentIndex)
                         }
 
-                        Label { text: "Zusatzverstärkung"; color: "#b9c9d8" }
+                        Label { text: "Zusatzverstärkung" }
                         RowLayout {
-                            Layout.fillWidth: true
                             CheckBox {
                                 enabled: xdrClient.ready
                                 text: "RF"
@@ -378,158 +257,44 @@ ApplicationWindow {
                                 }
                             }
                         }
-
-                        Label { text: "Status"; color: "#b9c9d8" }
-                        Label {
-                            Layout.fillWidth: true
-                            text: "Soll-BW: "
-                                  + (xdrClient.bandwidthSettingHz > 0
-                                     ? window.bandwidthLabel(xdrClient.bandwidthSettingHz)
-                                     : "Auto")
-                            color: "#8fa2b8"
-                        }
                     }
                 }
-            }
 
-            Frame {
-                Layout.fillWidth: true
-                Layout.leftMargin: 22
-                Layout.rightMargin: 22
-                background: Rectangle {
-                    radius: 12
-                    color: "#17202a"
-                    border.color: xdrClient.seeking ? "#d9a441" : "#2b3a49"
-                    border.width: xdrClient.seeking ? 2 : 1
-                }
-
-                ColumnLayout {
-                    anchors.fill: parent
-                    spacing: 14
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Label {
-                            text: "Abstimmung"
-                            color: "white"
-                            font.pixelSize: 21
-                            font.bold: true
-                        }
-                        Item { Layout.fillWidth: true }
-                        Label {
-                            text: "FM 87,500–108,000 MHz"
-                            color: "#8fa2b8"
-                        }
-                    }
+                GroupBox {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 20
+                    Layout.rightMargin: 20
+                    title: "Abstimmung"
 
                     GridLayout {
-                        Layout.alignment: Qt.AlignHCenter
-                        columns: window.width < 760 ? 2 : 4
+                        anchors.fill: parent
+                        columns: 2
                         columnSpacing: 12
-                        rowSpacing: 12
+                        rowSpacing: 10
 
-                        Button {
-                            enabled: xdrClient.ready && !xdrClient.seeking
-                                     && xdrClient.frequencyKhz > xdrClient.minimumFmFrequencyKhz
-                            text: "− " + window.stepLabel(xdrClient.largeStepKhz)
-                            implicitWidth: 190
-                            implicitHeight: 54
-                            font.pixelSize: 17
-                            onClicked: xdrClient.stepLarge(-1)
-                        }
-                        Button {
-                            enabled: xdrClient.ready && !xdrClient.seeking
-                                     && xdrClient.frequencyKhz > xdrClient.minimumFmFrequencyKhz
-                            text: "− " + window.stepLabel(xdrClient.smallStepKhz)
-                            implicitWidth: 190
-                            implicitHeight: 54
-                            font.pixelSize: 17
-                            onClicked: xdrClient.stepSmall(-1)
-                        }
-                        Button {
-                            enabled: xdrClient.ready && !xdrClient.seeking
-                                     && xdrClient.frequencyKhz < xdrClient.maximumFmFrequencyKhz
-                            text: "+ " + window.stepLabel(xdrClient.smallStepKhz)
-                            implicitWidth: 190
-                            implicitHeight: 54
-                            font.pixelSize: 17
-                            onClicked: xdrClient.stepSmall(1)
-                        }
-                        Button {
-                            enabled: xdrClient.ready && !xdrClient.seeking
-                                     && xdrClient.frequencyKhz < xdrClient.maximumFmFrequencyKhz
-                            text: "+ " + window.stepLabel(xdrClient.largeStepKhz)
-                            implicitWidth: 190
-                            implicitHeight: 54
-                            font.pixelSize: 17
-                            onClicked: xdrClient.stepLarge(1)
-                        }
-                    }
-
-                    GridLayout {
-                        Layout.fillWidth: true
-                        columns: window.width < 760 ? 2 : 4
-                        columnSpacing: 12
-                        rowSpacing: 8
-
-                        Label { text: "Kleiner Schritt"; color: "#b9c9d8" }
+                        Label { text: "Kleiner Schritt" }
                         ComboBox {
-                            enabled: !xdrClient.seeking
                             Layout.fillWidth: true
+                            enabled: !xdrClient.seeking
                             model: ["50 kHz", "100 kHz", "200 kHz"]
                             currentIndex: window.valueIndex(window.smallStepValues,
                                                             xdrClient.smallStepKhz)
                             onActivated: xdrClient.setSmallStepKhz(
                                              window.smallStepValues[currentIndex])
                         }
-                        Label { text: "Großer Schritt"; color: "#b9c9d8" }
+
+                        Label { text: "Großer Schritt" }
                         ComboBox {
-                            enabled: !xdrClient.seeking
                             Layout.fillWidth: true
+                            enabled: !xdrClient.seeking
                             model: ["500 kHz", "1 MHz", "2 MHz"]
                             currentIndex: window.valueIndex(window.largeStepValues,
                                                             xdrClient.largeStepKhz)
                             onActivated: xdrClient.setLargeStepKhz(
                                              window.largeStepValues[currentIndex])
                         }
-                    }
 
-                    RowLayout {
-                        Layout.alignment: Qt.AlignHCenter
-                        spacing: 12
-
-                        Button {
-                            enabled: xdrClient.ready && !xdrClient.seeking
-                                     && xdrClient.frequencyKhz > xdrClient.minimumFmFrequencyKhz
-                            text: "Suchlauf ◀"
-                            implicitWidth: 180
-                            implicitHeight: 54
-                            font.pixelSize: 17
-                            onClicked: xdrClient.startSeek(-1)
-                        }
-                        Button {
-                            enabled: xdrClient.seeking
-                            text: "■ Stoppen"
-                            implicitWidth: 150
-                            implicitHeight: 54
-                            font.pixelSize: 17
-                            onClicked: xdrClient.stopSeek()
-                        }
-                        Button {
-                            enabled: xdrClient.ready && !xdrClient.seeking
-                                     && xdrClient.frequencyKhz < xdrClient.maximumFmFrequencyKhz
-                            text: "Suchlauf ▶"
-                            implicitWidth: 180
-                            implicitHeight: 54
-                            font.pixelSize: 17
-                            onClicked: xdrClient.startSeek(1)
-                        }
-                    }
-
-                    RowLayout {
-                        Layout.alignment: Qt.AlignHCenter
-                        spacing: 10
-                        Label { text: "Suchschwelle:"; color: "#b9c9d8" }
+                        Label { text: "Suchschwelle" }
                         SpinBox {
                             from: 0
                             to: 80
@@ -538,26 +303,490 @@ ApplicationWindow {
                             enabled: !xdrClient.seeking
                             onValueModified: xdrClient.setSeekThreshold(value)
                         }
-                        Label { text: "Signalwert"; color: "#8fa2b8" }
-                        Label {
-                            visible: xdrClient.seeking
-                            text: xdrClient.seekDirection > 0
-                                  ? "Suche aufwärts …" : "Suche abwärts …"
-                            color: "#ffd27a"
+                    }
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 20
+                    Layout.rightMargin: 20
+                    text: "Letzte Antwort: " + (xdrClient.lastLine || "–")
+                    color: window.mutedInk
+                    wrapMode: Text.WrapAnywhere
+                    font.pixelSize: 12
+                }
+
+                Item { Layout.preferredHeight: 20 }
+            }
+        }
+    }
+
+    ScrollView {
+        id: mainScroll
+
+        anchors.fill: parent
+        anchors.margins: 18
+
+        contentWidth: Math.max(availableWidth, 850)
+        contentHeight: frontPanel.height
+        clip: true
+
+        Rectangle {
+            id: frontPanel
+
+            width: mainScroll.contentWidth
+            implicitHeight: faceColumn.implicitHeight + 44
+            radius: 3
+            border.width: 1
+            border.color: "#70706a"
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: window.aluminiumLight }
+                GradientStop { position: 0.48; color: window.aluminiumMid }
+                GradientStop { position: 1.0; color: window.aluminiumDark }
+            }
+
+            ColumnLayout {
+                id: faceColumn
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.margins: 22
+                spacing: 14
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
+
+                    Rectangle {
+                        width: 18
+                        height: 18
+                        radius: 9
+                        color: "transparent"
+                        border.color: window.ink
+                        border.width: 2
+                        Text {
+                            anchors.centerIn: parent
+                            text: "Y"
+                            color: window.ink
+                            font.pixelSize: 11
                             font.bold: true
                         }
                     }
-                }
-            }
 
-            Label {
-                Layout.fillWidth: true
-                Layout.leftMargin: 22
-                Layout.rightMargin: 22
-                Layout.bottomMargin: 16
-                text: "Letzte Antwort: " + (xdrClient.lastLine || "–")
-                color: "#8fa2b8"
-                elide: Text.ElideRight
+                    Label {
+                        text: "XDR TABLET"
+                        color: window.ink
+                        font.pixelSize: 16
+                        font.bold: true
+                        font.letterSpacing: 1.2
+                    }
+                    Label {
+                        text: "NATURAL SOUND FM STEREO TUNER"
+                        color: window.mutedInk
+                        font.pixelSize: 12
+                        font.letterSpacing: 0.8
+                    }
+
+                    Item { Layout.fillWidth: true }
+
+                    Rectangle {
+                        implicitWidth: statusText.implicitWidth + 22
+                        implicitHeight: 30
+                        radius: 2
+                        color: "#bdbdb6"
+                        border.color: "#777770"
+
+                        Label {
+                            id: statusText
+                            anchors.centerIn: parent
+                            text: xdrClient.ready ? "● ONLINE"
+                                                  : (xdrClient.connected ? "◐ VERBINDUNG" : "○ OFFLINE")
+                            color: xdrClient.ready ? "#315b37"
+                                                   : (xdrClient.connected ? "#775a20" : "#6c3434")
+                            font.pixelSize: 12
+                            font.bold: true
+                        }
+                    }
+
+                    VintageButton {
+                        implicitWidth: 118
+                        implicitHeight: 34
+                        text: "EINSTELLUNGEN"
+                        onClicked: settingsDrawer.open()
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: Math.max(190, Math.min(235, window.height * 0.29))
+                    color: "#22231f"
+                    border.color: "#5b5b55"
+                    border.width: 5
+
+                    Rectangle {
+                        anchors.fill: parent
+                        anchors.margins: 12
+                        color: window.scaleGlass
+                        border.color: "#77776f"
+
+                        FrequencyScale {
+                            anchors.fill: parent
+                            anchors.margins: 5
+                            frequencyKhz: xdrClient.frequencyKhz
+                            minimumKhz: xdrClient.minimumFmFrequencyKhz
+                            maximumKhz: xdrClient.maximumFmFrequencyKhz
+                            scaleColor: window.scaleGlass
+                            textColor: window.ink
+                            pointerColor: window.amber
+                        }
+
+                        Rectangle {
+                            anchors.right: parent.right
+                            anchors.bottom: parent.bottom
+                            anchors.rightMargin: 18
+                            anchors.bottomMargin: 14
+                            width: 190
+                            height: 38
+                            color: "#c9c9bd"
+                            border.color: "#85857d"
+                            Label {
+                                anchors.centerIn: parent
+                                text: (xdrClient.frequencyKhz / 1000).toFixed(3) + " MHz"
+                                color: window.ink
+                                font.family: "monospace"
+                                font.pixelSize: 20
+                                font.bold: true
+                            }
+                        }
+                    }
+                }
+
+                Item {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 225
+
+                    RowLayout {
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        anchors.right: fmTuningColumn.left
+                        anchors.rightMargin: 18
+                        spacing: 18
+
+
+                        ColumnLayout {
+                        Layout.preferredWidth: 145
+                        Layout.fillHeight: true
+                        spacing: 10
+
+                        Label {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: "POWER"
+                            color: window.ink
+                            font.pixelSize: 11
+                            font.bold: true
+                        }
+
+                        Rectangle {
+                            Layout.alignment: Qt.AlignHCenter
+                            width: 64
+                            height: 92
+                            color: "#b8b8b1"
+                            border.color: "#777770"
+
+                            Rectangle {
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                y: xdrClient.connected ? 13 : 46
+                                width: 24
+                                height: 34
+                                radius: 2
+                                color: "#30302d"
+                                border.color: "#11110f"
+                                Behavior on y { NumberAnimation { duration: 120 } }
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: window.connectOrDisconnect()
+                            }
+                        }
+
+                        Label {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: xdrClient.connected ? "ON" : "OFF"
+                            color: window.ink
+                            font.pixelSize: 12
+                            font.bold: true
+                        }
+
+                        VintageButton {
+                            Layout.alignment: Qt.AlignHCenter
+                            implicitWidth: 130
+                            text: xdrClient.forcedMono ? "MONO" : "AUTO"
+                            enabled: xdrClient.ready && !xdrClient.seeking
+                            onClicked: xdrClient.setForcedMono(!xdrClient.forcedMono)
+                        }
+                    }
+
+                    VintageMeter {
+                        Layout.preferredWidth: 220
+                        Layout.fillHeight: true
+                        title: "SIGNAL"
+                        value: xdrClient.signalAvailable ? xdrClient.signalLevel : 0
+                        minimumValue: 0
+                        maximumValue: 80
+                        valueText: xdrClient.signalAvailable
+                                   ? xdrClient.signalLevel.toFixed(2) : "–"
+                        needleColor: window.amber
+                    }
+
+                    VintageMeter {
+                        Layout.preferredWidth: 220
+                        Layout.fillHeight: true
+                        title: "FM QUALITY"
+                        value: window.qualityValue()
+                        minimumValue: 0
+                        maximumValue: 100
+                        valueText: (xdrClient.cci >= 0 ? xdrClient.cci : "–")
+                                   + " / "
+                                   + (xdrClient.aci >= 0 ? xdrClient.aci : "–")
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        spacing: 9
+
+                        Label {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: "TUNING"
+                            color: window.ink
+                            font.pixelSize: 12
+                            font.bold: true
+                            font.letterSpacing: 1.0
+                        }
+
+                        RowLayout {
+                            Layout.alignment: Qt.AlignHCenter
+                            spacing: 8
+                            VintageButton {
+                                implicitWidth: 98
+                                text: "− " + (xdrClient.largeStepKhz / 1000) + " MHz"
+                                enabled: xdrClient.ready && !xdrClient.seeking
+                                onClicked: xdrClient.stepLarge(-1)
+                            }
+                            VintageButton {
+                                implicitWidth: 98
+                                text: "− " + xdrClient.smallStepKhz + " kHz"
+                                enabled: xdrClient.ready && !xdrClient.seeking
+                                onClicked: xdrClient.stepSmall(-1)
+                            }
+                            VintageButton {
+                                implicitWidth: 98
+                                text: "+ " + xdrClient.smallStepKhz + " kHz"
+                                enabled: xdrClient.ready && !xdrClient.seeking
+                                onClicked: xdrClient.stepSmall(1)
+                            }
+                            VintageButton {
+                                implicitWidth: 98
+                                text: "+ " + (xdrClient.largeStepKhz / 1000) + " MHz"
+                                enabled: xdrClient.ready && !xdrClient.seeking
+                                onClicked: xdrClient.stepLarge(1)
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.alignment: Qt.AlignHCenter
+                            spacing: 8
+                            VintageButton {
+                                implicitWidth: 120
+                                text: "SEEK ◀"
+                                enabled: xdrClient.ready && !xdrClient.seeking
+                                onClicked: xdrClient.startSeek(-1)
+                            }
+                            VintageButton {
+                                implicitWidth: 110
+                                text: "■ STOP"
+                                enabled: xdrClient.seeking
+                                onClicked: xdrClient.stopSeek()
+                            }
+                            VintageButton {
+                                implicitWidth: 120
+                                text: "SEEK ▶"
+                                enabled: xdrClient.ready && !xdrClient.seeking
+                                onClicked: xdrClient.startSeek(1)
+                            }
+                        }
+
+                        Label {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: xdrClient.seeking
+                                  ? (xdrClient.seekDirection > 0 ? "SUCHLAUF AUFWÄRTS" : "SUCHLAUF ABWÄRTS")
+                                  : xdrClient.receptionModeText
+                            color: xdrClient.seeking ? "#7a5015" : window.mutedInk
+                            font.pixelSize: 12
+                            font.bold: true
+                        }
+                    }
+                    }
+
+                    // Dieser Block ist unabhängig vom RowLayout direkt am
+                    // rechten Rand verankert. Dadurch bleibt der Knopf beim
+                    // Vergrößern und Verkleinern immer exakt 35 Pixel vom Rand der Aluminiumfront entfernt.
+                    ColumnLayout {
+                        id: fmTuningColumn
+
+                        width: 170
+                        anchors.right: parent.right
+                        anchors.rightMargin: 13
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 6
+
+                        Label {
+                            Layout.preferredWidth: 135
+                            Layout.alignment: Qt.AlignRight
+                            horizontalAlignment: Text.AlignHCenter
+                            text: "FM TUNING"
+                            color: window.ink
+                            font.pixelSize: 11
+                            font.bold: true
+                        }
+
+                        TuningKnob {
+                            Layout.preferredWidth: 135
+                            Layout.preferredHeight: 135
+                            Layout.minimumWidth: 135
+                            Layout.minimumHeight: 135
+                            Layout.alignment: Qt.AlignRight
+                            enabled: xdrClient.ready && !xdrClient.seeking
+
+                            onStepRequested: function(direction) {
+                                xdrClient.stepSmall(direction)
+                            }
+                        }
+
+                        Label {
+                            Layout.preferredWidth: 170
+                            Layout.alignment: Qt.AlignRight
+                            horizontalAlignment: Text.AlignHCenter
+                            text: "ziehen · klicken · Mausrad"
+                            color: window.mutedInk
+                            font.pixelSize: 10
+                        }
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 142
+                    color: "#171915"
+                    border.color: "#55564f"
+                    border.width: 3
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.margins: 14
+                        spacing: 18
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            spacing: 5
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Label {
+                                    Layout.fillWidth: true
+                                    text: xdrClient.psText.length > 0
+                                          ? xdrClient.psText : "RDS / PROGRAM SERVICE"
+                                    color: xdrClient.rdsActive ? "#e6dba8" : "#77766b"
+                                    font.family: "monospace"
+                                    font.pixelSize: 27
+                                    font.bold: true
+                                    elide: Text.ElideRight
+                                }
+                                Label {
+                                    text: xdrClient.rdsActive ? "● RDS" : "○ RDS"
+                                    color: xdrClient.rdsActive ? "#d7b45d" : "#65655f"
+                                    font.pixelSize: 13
+                                    font.bold: true
+                                }
+                            }
+
+                            Label {
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                text: xdrClient.radioText.length > 0
+                                      ? xdrClient.radioText : "Radiotext wird empfangen …"
+                                color: xdrClient.radioText.length > 0 ? "#d2d0bd" : "#67675f"
+                                font.family: "monospace"
+                                font.pixelSize: 16
+                                wrapMode: Text.WordWrap
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                        }
+
+                        Rectangle {
+                            width: 1
+                            Layout.fillHeight: true
+                            color: "#50514a"
+                        }
+
+                        GridLayout {
+                            Layout.preferredWidth: 245
+                            columns: 2
+                            columnSpacing: 10
+                            rowSpacing: 7
+
+                            Label { text: "PI"; color: "#85857b" }
+                            Label {
+                                text: xdrClient.piCode
+                                color: "#ded8b5"
+                                font.family: "monospace"
+                                font.bold: true
+                            }
+                            Label { text: "PTY"; color: "#85857b" }
+                            Label {
+                                text: xdrClient.ptyCode >= 0 ? xdrClient.ptyText : "–"
+                                color: "#ded8b5"
+                                elide: Text.ElideRight
+                                Layout.fillWidth: true
+                            }
+                            Label { text: "BW"; color: "#85857b" }
+                            Label {
+                                text: window.bandwidthLabel(xdrClient.bandwidthHz)
+                                color: "#ded8b5"
+                            }
+                            Label { text: "RDS"; color: "#85857b" }
+                            Label {
+                                text: xdrClient.rdsGroupCount + " Gruppen"
+                                color: "#ded8b5"
+                            }
+                        }
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.bottomMargin: 4
+                    spacing: 12
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: xdrClient.statusText
+                        color: window.ink
+                        font.pixelSize: 12
+                        elide: Text.ElideRight
+                    }
+                    Label {
+                        text: "FM 87,5–108 MHz  ·  "
+                              + (xdrClient.bandwidthSettingHz > 0
+                                 ? "BW " + window.bandwidthLabel(xdrClient.bandwidthSettingHz)
+                                 : "BW AUTO")
+                        color: window.mutedInk
+                        font.pixelSize: 11
+                    }
+                }
             }
         }
     }
