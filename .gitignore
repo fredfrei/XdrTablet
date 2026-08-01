@@ -19,3 +19,9 @@ core.*
 # Manuelle Sicherungen
 *.bak
 qml/Main.qml.vor*
+
+# AppImage-Erstellung
+build-appimage/
+dist/
+.appimage-tools/
+packaging/
