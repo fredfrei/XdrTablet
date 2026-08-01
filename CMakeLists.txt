@@ -22,6 +22,10 @@ qt_add_qml_module(XdrTablet
     VERSION 1.0
     QML_FILES
         qml/Main.qml
+        qml/FrequencyScale.qml
+        qml/VintageMeter.qml
+        qml/TuningKnob.qml
+        qml/VintageButton.qml
 )
 
 target_link_libraries(XdrTablet PRIVATE Qt6::Quick Qt6::Network)

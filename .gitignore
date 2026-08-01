@@ -3,3 +3,19 @@ build/
 *.autosave
 CMakeUserPresets.json
 .DS_Store
+
+# Build-Dateien
+build/
+
+# Absturzdateien
+core
+core.*
+
+# Editor-Dateien
+*.swp
+*.swo
+*.autosave
+
+# Manuelle Sicherungen
+*.bak
+qml/Main.qml.vor*
