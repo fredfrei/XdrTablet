@@ -38,7 +38,7 @@ ApplicationWindow {
         property alias password: passwordField.text
     }
 
-    background: Rectangle { color: "#10151c" }
+    background: Rectangle { color: "#202020"}
 
     ScrollView {
         anchors.fill: parent
