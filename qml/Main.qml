@@ -27,6 +27,11 @@ ApplicationWindow {
     property color woodDark: "#4b2d1d"
     property color woodLight: "#795039"
 
+    // Nur Zustand der Tablet-Oberfläche:
+    // true = Verbindung zu xdrd gewünscht
+    // false = ausgeschaltet
+    property bool powerEnabled: false
+
     property var bandwidthValues: [0, 56000, 64000, 72000, 84000, 97000,
                                    114000, 133000, 151000, 168000, 184000,
                                    200000, 217000, 236000, 254000, 287000,
@@ -44,12 +49,27 @@ ApplicationWindow {
     }
 
     function connectOrDisconnect() {
-        if (xdrClient.connected)
-            xdrClient.disconnectFromServer()
-        else
+        if (powerEnabled) {
+            powerEnabled = false
+
+            if (xdrClient.connected)
+                xdrClient.disconnectFromServer()
+        } else {
+            powerEnabled = true
+
             xdrClient.connectToServer(hostField.text,
                                       Number(portField.text),
                                       passwordField.text)
+        }
+    }
+
+    function powerOffAndQuit() {
+        powerEnabled = false
+
+        if (xdrClient.connected)
+            xdrClient.disconnectFromServer()
+
+        Qt.quit()
     }
 
     function qualityValue() {
@@ -411,11 +431,15 @@ ApplicationWindow {
                             anchors.leftMargin: 8
                             anchors.rightMargin: 8
 
-                            text: xdrClient.ready ? "● ONLINE"
-                                                  : (xdrClient.connected ? "◐ VERBINDUNG" : "○ OFFLINE")
+                            text: !window.powerEnabled ? "○ AUS"
+                                  : xdrClient.ready ? "● ONLINE"
+                                  : xdrClient.connected ? "◐ VERBINDUNG"
+                                  : "○ OFFLINE"
 
-                            color: xdrClient.ready ? "#315b37"
-                                                   : (xdrClient.connected ? "#775a20" : "#6c3434")
+                            color: !window.powerEnabled ? "#666660"
+                                   : xdrClient.ready ? "#315b37"
+                                   : xdrClient.connected ? "#775a20"
+                                   : "#6c3434"
 
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
@@ -519,7 +543,7 @@ ApplicationWindow {
 
                             Rectangle {
                                 anchors.horizontalCenter: parent.horizontalCenter
-                                y: xdrClient.connected ? 13 : 46
+                                y: window.powerEnabled ? 13 : 46
                                 width: 24
                                 height: 34
                                 radius: 2
@@ -530,13 +554,19 @@ ApplicationWindow {
 
                             MouseArea {
                                 anchors.fill: parent
+                                pressAndHoldInterval: 1200
+
                                 onClicked: window.connectOrDisconnect()
+
+                                onPressAndHold: {
+                                    window.powerOffAndQuit()
+                                }
                             }
                         }
 
                         Label {
                             Layout.alignment: Qt.AlignHCenter
-                            text: xdrClient.connected ? "ON" : "OFF"
+                            text: window.powerEnabled ? "ON" : "OFF"
                             color: window.ink
                             font.pixelSize: 12
                             font.bold: true
