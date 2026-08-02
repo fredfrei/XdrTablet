@@ -30,6 +30,17 @@ qt_add_qml_module(XdrTablet
 
 target_link_libraries(XdrTablet PRIVATE Qt6::Quick Qt6::Network)
 
+if(ANDROID)
+    set_target_properties(XdrTablet PROPERTIES
+        QT_ANDROID_PACKAGE_NAME "com.github.fredfrei.xdrtablet"
+        QT_ANDROID_VERSION_NAME "0.1.2"
+        QT_ANDROID_VERSION_CODE 3
+        QT_ANDROID_MIN_SDK_VERSION 28
+        QT_ANDROID_TARGET_SDK_VERSION 36
+        QT_ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android"
+    )
+endif()
+
 set_target_properties(XdrTablet PROPERTIES
     MACOSX_BUNDLE TRUE
     WIN32_EXECUTABLE TRUE

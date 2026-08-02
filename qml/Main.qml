@@ -7,8 +7,8 @@ ApplicationWindow {
     id: window
     width: 1280
     height: 820
-    minimumWidth: 900
-    minimumHeight: 640
+    minimumWidth: Qt.platform.os === "android" ? 0 : 900
+    minimumHeight: Qt.platform.os === "android" ? 0 : 640
     visible: true
     title: "XDR CT-610"
 
