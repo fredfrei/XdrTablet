@@ -6,8 +6,8 @@
     android:versionName="-- %%INSERT_VERSION_NAME%% --">
 
     <uses-sdk
-        android:minSdkVersion="-- %%INSERT_MIN_SDK_VERSION%% --"
-        android:targetSdkVersion="-- %%INSERT_TARGET_SDK_VERSION%% --" />
+        android:minSdkVersion="28"
+        android:targetSdkVersion="36" />
 
     <supports-screens
         android:anyDensity="true"
