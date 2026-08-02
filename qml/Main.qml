@@ -528,29 +528,69 @@ ApplicationWindow {
                         }
                     }
 
-                    VintageMeter {
+                    ColumnLayout {
                         Layout.preferredWidth: 220
-                        Layout.fillHeight: true
-                        title: "SIGNAL"
-                        value: xdrClient.signalAvailable ? xdrClient.signalLevel : 0
-                        minimumValue: 0
-                        maximumValue: 80
-                        valueText: xdrClient.signalAvailable
-                                   ? xdrClient.signalLevel.toFixed(2) : "–"
-                        needleColor: window.amber
-                    }
+                        Layout.minimumWidth: 220
+                        Layout.maximumWidth: 220
+                        Layout.fillWidth: false
+                        Layout.alignment: Qt.AlignVCenter
+                        spacing: 4
 
-                    VintageMeter {
-                        Layout.preferredWidth: 220
-                        Layout.fillHeight: true
-                        title: "FM QUALITY"
-                        value: window.qualityValue()
-                        minimumValue: 0
-                        maximumValue: 100
-                        valueText: (xdrClient.cci >= 0 ? xdrClient.cci : "–")
-                                   + " / "
-                                   + (xdrClient.aci >= 0 ? xdrClient.aci : "–")
+                        VintageMeter {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 120
+                            Layout.maximumHeight: 120
+
+                            title: ""
+                            value: xdrClient.signalAvailable
+                                   ? xdrClient.signalLevel : 0
+                            minimumValue: 0
+                            maximumValue: 80
+                            valueText: xdrClient.signalAvailable
+                                       ? xdrClient.signalLevel.toFixed(2) : "–"
+                            needleColor: window.amber
+                        }
+
+                        Label {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: "SIGNAL"
+                            color: window.ink
+                            font.pixelSize: 12
+                            font.bold: true
+                            font.letterSpacing: 1.0
+                        }
                     }
+ColumnLayout {
+    Layout.preferredWidth: 220
+    Layout.minimumWidth: 220
+    Layout.maximumWidth: 220
+    Layout.fillWidth: false
+    Layout.alignment: Qt.AlignVCenter
+    spacing: 4
+
+    VintageMeter {
+        Layout.fillWidth: true
+        Layout.preferredHeight: 120
+        Layout.maximumHeight: 120
+
+        title: ""
+        value: window.qualityValue()
+        minimumValue: 0
+        maximumValue: 100
+        valueText: (xdrClient.cci >= 0 ? xdrClient.cci : "–")
+                   + " / "
+                   + (xdrClient.aci >= 0 ? xdrClient.aci : "–")
+    }
+
+    Label {
+        Layout.alignment: Qt.AlignHCenter
+        text: "FM QUALITY"
+        color: window.ink
+        font.pixelSize: 12
+        font.bold: true
+        font.letterSpacing: 1.0
+    }
+}
 
                     ColumnLayout {
                         Layout.fillWidth: true
