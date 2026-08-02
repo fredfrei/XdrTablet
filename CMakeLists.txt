@@ -49,4 +49,5 @@ set_target_properties(XdrTablet PROPERTIES
 install(TARGETS XdrTablet
     BUNDLE DESTINATION .
     RUNTIME DESTINATION bin
+    LIBRARY DESTINATION lib
 )
