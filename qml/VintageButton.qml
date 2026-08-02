@@ -7,6 +7,11 @@ Button {
     implicitWidth: 132
     implicitHeight: 36
 
+    leftInset: 0
+    rightInset: 0
+    topInset: 0
+    bottomInset: 0
+
     leftPadding: 10
     rightPadding: 10
     topPadding: 4

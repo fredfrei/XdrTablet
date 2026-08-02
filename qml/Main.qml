@@ -5,6 +5,11 @@ import QtCore
 
 ApplicationWindow {
     id: window
+
+    property int headerControlHeight: Math.max(
+        32,
+        Math.min(42, Math.round(height * 0.045))
+    )
     width: 1280
     height: 820
     minimumWidth: Qt.platform.os === "android" ? 0 : 900
@@ -391,7 +396,9 @@ ApplicationWindow {
                     Rectangle {
                         // ONLINE und EINSTELLUNGEN erhalten dieselbe Größe.
                         Layout.preferredWidth: window.width < 900 ? 118 : 138
-                        Layout.preferredHeight: window.width < 900 ? 32 : 36
+                        Layout.minimumHeight: window.headerControlHeight
+                        Layout.preferredHeight: window.headerControlHeight
+                        Layout.maximumHeight: window.headerControlHeight
 
                         radius: 2
                         color: "#bdbdb6"
@@ -423,7 +430,9 @@ ApplicationWindow {
 
                     VintageButton {
                         Layout.preferredWidth: window.width < 900 ? 118 : 138
-                        Layout.preferredHeight: window.width < 900 ? 32 : 36
+                        Layout.minimumHeight: window.headerControlHeight
+                        Layout.preferredHeight: window.headerControlHeight
+                        Layout.maximumHeight: window.headerControlHeight
 
                         text: "EINSTELLUNGEN"
                         onClicked: settingsDrawer.open()
