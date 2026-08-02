@@ -413,24 +413,17 @@ ApplicationWindow {
 
                     Item { Layout.fillWidth: true }
 
-                    Rectangle {
-                        // ONLINE und EINSTELLUNGEN erhalten dieselbe Größe.
+                    VintageButton {
+                        id: statusButton
+
                         Layout.preferredWidth: window.width < 900 ? 118 : 138
                         Layout.minimumHeight: window.headerControlHeight
                         Layout.preferredHeight: window.headerControlHeight
                         Layout.maximumHeight: window.headerControlHeight
 
-                        radius: 2
-                        color: "#bdbdb6"
-                        border.width: 1
-                        border.color: "#777770"
+                        enabled: false
 
-                        Label {
-                            id: statusText
-                            anchors.fill: parent
-                            anchors.leftMargin: 8
-                            anchors.rightMargin: 8
-
+                        contentItem: Text {
                             text: !window.powerEnabled ? "○ AUS"
                                   : xdrClient.ready ? "● ONLINE"
                                   : xdrClient.connected ? "◐ VERBINDUNG"
@@ -449,6 +442,7 @@ ApplicationWindow {
                             fontSizeMode: Text.Fit
                             minimumPixelSize: 10
                             wrapMode: Text.NoWrap
+                            maximumLineCount: 1
                         }
                     }
 
