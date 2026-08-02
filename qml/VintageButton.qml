@@ -14,7 +14,11 @@ Button {
         color: control.enabled ? "#202020" : "#777772"
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
-        wrapMode: Text.WordWrap
+        fontSizeMode: Text.Fit
+        minimumPixelSize: 9
+        wrapMode: Text.NoWrap
+        maximumLineCount: 1
+        clip: true
     }
 
     background: Rectangle {
