@@ -389,27 +389,42 @@ ApplicationWindow {
                     Item { Layout.fillWidth: true }
 
                     Rectangle {
-                        implicitWidth: statusText.implicitWidth + 22
-                        implicitHeight: 30
+                        // ONLINE und EINSTELLUNGEN erhalten dieselbe Größe.
+                        Layout.preferredWidth: window.width < 900 ? 118 : 138
+                        Layout.preferredHeight: window.width < 900 ? 32 : 36
+
                         radius: 2
                         color: "#bdbdb6"
+                        border.width: 1
                         border.color: "#777770"
 
                         Label {
                             id: statusText
-                            anchors.centerIn: parent
+                            anchors.fill: parent
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+
                             text: xdrClient.ready ? "● ONLINE"
                                                   : (xdrClient.connected ? "◐ VERBINDUNG" : "○ OFFLINE")
+
                             color: xdrClient.ready ? "#315b37"
                                                    : (xdrClient.connected ? "#775a20" : "#6c3434")
-                            font.pixelSize: 12
+
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+
+                            font.pixelSize: window.width < 900 ? 11 : 13
                             font.bold: true
+                            fontSizeMode: Text.Fit
+                            minimumPixelSize: 10
+                            wrapMode: Text.NoWrap
                         }
                     }
 
                     VintageButton {
-                        implicitWidth: 118
-                        implicitHeight: 34
+                        Layout.preferredWidth: window.width < 900 ? 118 : 138
+                        Layout.preferredHeight: window.width < 900 ? 32 : 36
+
                         text: "EINSTELLUNGEN"
                         onClicked: settingsDrawer.open()
                     }
