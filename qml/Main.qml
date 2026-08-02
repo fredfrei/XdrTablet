@@ -56,7 +56,6 @@ ApplicationWindow {
     Settings {
         property alias host: hostField.text
         property alias port: portField.text
-        property alias password: passwordField.text
     }
 
     Shortcut {
