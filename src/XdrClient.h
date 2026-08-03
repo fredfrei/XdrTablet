@@ -27,8 +27,8 @@ class XdrClient : public QObject
     Q_PROPERTY(int bandwidthSettingHz READ bandwidthSettingHz NOTIFY receiverSettingsChanged)
     Q_PROPERTY(int deemphasis READ deemphasis NOTIFY receiverSettingsChanged)
     Q_PROPERTY(int agc READ agc NOTIFY receiverSettingsChanged)
-    Q_PROPERTY(bool rfGain READ rfGain NOTIFY receiverSettingsChanged)
-    Q_PROPERTY(bool ifGain READ ifGain NOTIFY receiverSettingsChanged)
+    Q_PROPERTY(bool channelEqualizer READ channelEqualizer NOTIFY receiverSettingsChanged)
+    Q_PROPERTY(bool multipathSuppression READ multipathSuppression NOTIFY receiverSettingsChanged)
 
     Q_PROPERTY(bool rdsActive READ rdsActive NOTIFY rdsChanged)
     Q_PROPERTY(QString piCode READ piCode NOTIFY rdsChanged)
@@ -67,8 +67,8 @@ public:
     int bandwidthSettingHz() const;
     int deemphasis() const;
     int agc() const;
-    bool rfGain() const;
-    bool ifGain() const;
+    bool channelEqualizer() const;
+    bool multipathSuppression() const;
 
     bool rdsActive() const;
     QString piCode() const;
@@ -105,8 +105,8 @@ public:
     Q_INVOKABLE void setBandwidth(int hz);
     Q_INVOKABLE void setDeemphasis(int mode);
     Q_INVOKABLE void setAgc(int mode);
-    Q_INVOKABLE void setRfGain(bool enabled);
-    Q_INVOKABLE void setIfGain(bool enabled);
+    Q_INVOKABLE void setChannelEqualizer(bool enabled);
+    Q_INVOKABLE void setMultipathSuppression(bool enabled);
 
 signals:
     void connectedChanged();
@@ -144,7 +144,7 @@ private:
     void clearSignalData();
     void updateReceptionMode(bool stereo, bool forcedMono);
     void applySavedReceiverSettings();
-    void sendGainCommand();
+    void sendDspCommand();
 
     void clearRdsData();
     void markRdsActivity();
@@ -190,8 +190,8 @@ private:
     int bandwidthSettingHz_ = 0;
     int deemphasis_ = 0;
     int agc_ = 2;
-    bool rfGain_ = false;
-    bool ifGain_ = false;
+    bool channelEqualizerEnabled_ = true;
+    bool multipathSuppressionEnabled_ = true;
 
     bool rdsActive_ = false;
     int rdsPi_ = -1;

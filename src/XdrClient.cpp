@@ -41,8 +41,17 @@ XdrClient::XdrClient(QObject *parent) : QObject(parent)
     deemphasis_ = qBound(
         0, settings.value(QStringLiteral("receiver/deemphasis"), 0).toInt(), 2);
     agc_ = qBound(0, settings.value(QStringLiteral("receiver/agc"), 2).toInt(), 3);
-    rfGain_ = settings.value(QStringLiteral("receiver/rfGain"), false).toBool();
-    ifGain_ = settings.value(QStringLiteral("receiver/ifGain"), false).toBool();
+    // PE5PVB: G erste Stelle = Channel EQ AUS, zweite Stelle = iMS AUS.
+    // Alte XdrTablet-Einstellungen werden einmalig logisch invertiert übernommen.
+    channelEqualizerEnabled_ = settings.contains(
+        QStringLiteral("receiver/channelEqualizer"))
+        ? settings.value(QStringLiteral("receiver/channelEqualizer")).toBool()
+        : !settings.value(QStringLiteral("receiver/rfGain"), false).toBool();
+
+    multipathSuppressionEnabled_ = settings.contains(
+        QStringLiteral("receiver/multipathSuppression"))
+        ? settings.value(QStringLiteral("receiver/multipathSuppression")).toBool()
+        : !settings.value(QStringLiteral("receiver/ifGain"), false).toBool();
 
     residualTimer_.setSingleShot(true);
     residualTimer_.setInterval(100);
@@ -88,8 +97,15 @@ int XdrClient::bandwidthHz() const { return bandwidthHz_; }
 int XdrClient::bandwidthSettingHz() const { return bandwidthSettingHz_; }
 int XdrClient::deemphasis() const { return deemphasis_; }
 int XdrClient::agc() const { return agc_; }
-bool XdrClient::rfGain() const { return rfGain_; }
-bool XdrClient::ifGain() const { return ifGain_; }
+bool XdrClient::channelEqualizer() const
+{
+    return channelEqualizerEnabled_;
+}
+
+bool XdrClient::multipathSuppression() const
+{
+    return multipathSuppressionEnabled_;
+}
 bool XdrClient::rdsActive() const { return rdsActive_; }
 QString XdrClient::piCode() const { return piCode_; }
 QString XdrClient::psText() const { return psText_; }
@@ -290,24 +306,28 @@ void XdrClient::setAgc(int mode)
     sendLine(QStringLiteral("A%1").arg(value));
 }
 
-void XdrClient::setRfGain(bool enabled)
+void XdrClient::setChannelEqualizer(bool enabled)
 {
-    if (rfGain_ == enabled)
+    if (channelEqualizerEnabled_ == enabled)
         return;
-    rfGain_ = enabled;
-    QSettings().setValue(QStringLiteral("receiver/rfGain"), enabled);
+
+    channelEqualizerEnabled_ = enabled;
+    QSettings().setValue(
+        QStringLiteral("receiver/channelEqualizer"), enabled);
     emit receiverSettingsChanged();
-    sendGainCommand();
+    sendDspCommand();
 }
 
-void XdrClient::setIfGain(bool enabled)
+void XdrClient::setMultipathSuppression(bool enabled)
 {
-    if (ifGain_ == enabled)
+    if (multipathSuppressionEnabled_ == enabled)
         return;
-    ifGain_ = enabled;
-    QSettings().setValue(QStringLiteral("receiver/ifGain"), enabled);
+
+    multipathSuppressionEnabled_ = enabled;
+    QSettings().setValue(
+        QStringLiteral("receiver/multipathSuppression"), enabled);
     emit receiverSettingsChanged();
-    sendGainCommand();
+    sendDspCommand();
 }
 
 void XdrClient::onConnected()
@@ -577,17 +597,36 @@ void XdrClient::processLine(const QString &line)
     }
 
     if (line.startsWith('G')) {
-        bool ok = false;
-        const int value = line.mid(1).toInt(&ok);
-        if (ok) {
-            const bool newRf = value == 10 || value == 11;
-            const bool newIf = value == 1 || value == 11;
-            if (newRf != rfGain_ || newIf != ifGain_) {
-                rfGain_ = newRf;
-                ifGain_ = newIf;
+        const QString value = line.mid(1).rightJustified(
+            2, QLatin1Char('0'));
+
+        if (value.size() == 2 &&
+            (value.at(0) == QLatin1Char('0') ||
+             value.at(0) == QLatin1Char('1')) &&
+            (value.at(1) == QLatin1Char('0') ||
+             value.at(1) == QLatin1Char('1'))) {
+
+            // PE5PVB: 0 bedeutet Funktion EIN, 1 bedeutet Funktion AUS.
+            const bool newEqualizer =
+                value.at(0) == QLatin1Char('0');
+            const bool newMultipathSuppression =
+                value.at(1) == QLatin1Char('0');
+
+            if (newEqualizer != channelEqualizerEnabled_ ||
+                newMultipathSuppression !=
+                    multipathSuppressionEnabled_) {
+
+                channelEqualizerEnabled_ = newEqualizer;
+                multipathSuppressionEnabled_ =
+                    newMultipathSuppression;
+
                 QSettings settings;
-                settings.setValue(QStringLiteral("receiver/rfGain"), rfGain_);
-                settings.setValue(QStringLiteral("receiver/ifGain"), ifGain_);
+                settings.setValue(
+                    QStringLiteral("receiver/channelEqualizer"),
+                    channelEqualizerEnabled_);
+                settings.setValue(
+                    QStringLiteral("receiver/multipathSuppression"),
+                    multipathSuppressionEnabled_);
                 emit receiverSettingsChanged();
             }
         }
@@ -676,13 +715,27 @@ void XdrClient::applySavedReceiverSettings()
     sendLine(QStringLiteral("W%1").arg(bandwidthSettingHz_));
     sendLine(QStringLiteral("D%1").arg(deemphasis_));
     sendLine(QStringLiteral("A%1").arg(agc_));
-    sendGainCommand();
+    sendDspCommand();
 }
 
-void XdrClient::sendGainCommand()
+void XdrClient::sendDspCommand()
 {
-    const int value = (rfGain_ ? 10 : 0) + (ifGain_ ? 1 : 0);
-    sendLine(QStringLiteral("G%1").arg(value, 2, 10, QLatin1Char('0')));
+    // PE5PVB:
+    // erste Stelle 0 = Channel EQ EIN, 1 = AUS
+    // zweite Stelle 0 = iMS EIN,       1 = AUS
+    const QChar equalizer =
+        channelEqualizerEnabled_
+            ? QLatin1Char('0')
+            : QLatin1Char('1');
+
+    const QChar multipath =
+        multipathSuppressionEnabled_
+            ? QLatin1Char('0')
+            : QLatin1Char('1');
+
+    sendLine(QStringLiteral("G%1%2")
+                 .arg(equalizer)
+                 .arg(multipath));
 }
 
 void XdrClient::clearRdsData()

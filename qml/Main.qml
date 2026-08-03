@@ -6,14 +6,60 @@ import QtCore
 ApplicationWindow {
     id: window
 
-    property int headerControlHeight: Math.max(
-        32,
-        Math.min(42, Math.round(height * 0.045))
+    // Echte responsive Größenklassen für Handy, Tablet und Desktop.
+    readonly property bool phoneLayout: width < 650
+    readonly property bool compactLayout: width >= 650 && width < 1180
+    readonly property bool wideLayout: width >= 1180
+    readonly property bool portraitLayout: height > width
+
+    readonly property int outerMargin:
+        phoneLayout ? 6 : compactLayout ? 12 : 18
+    readonly property int panelMargin:
+        phoneLayout ? 8 : compactLayout ? 14 : 22
+    readonly property int sectionSpacing:
+        phoneLayout ? 8 : compactLayout ? 11 : 14
+    readonly property int controlSpacing:
+        phoneLayout ? 8 : compactLayout ? 12 : 18
+
+    readonly property int headerControlHeight: Math.max(
+        phoneLayout ? 34 : 36,
+        Math.min(phoneLayout ? 40 : 44,
+                 Math.round(height * (phoneLayout ? 0.05 : 0.045)))
     )
+    readonly property int headerControlWidth:
+        phoneLayout
+        ? Math.max(118, Math.min(150,
+                   Math.floor((width - 2 * outerMargin
+                               - 2 * panelMargin - 8) / 2)))
+        : compactLayout ? 138 : 150
+
+    readonly property int scaleHeight:
+        phoneLayout
+        ? Math.max(170, Math.min(220, Math.round(width * 0.52)))
+        : compactLayout
+          ? Math.max(190, Math.min(235, Math.round(height * 0.27)))
+          : Math.max(205, Math.min(245, Math.round(height * 0.29)))
+
+    readonly property int meterWidth:
+        wideLayout
+        ? Math.max(185, Math.min(220, Math.round(width * 0.17)))
+        : 0
+    readonly property int meterHeight:
+        phoneLayout ? 90 : compactLayout ? 105 : 120
+    readonly property int tuningKnobSize:
+        phoneLayout ? 112 : compactLayout ? 125 : 135
+
+    readonly property int smallFontSize:
+        phoneLayout ? 10 : compactLayout ? 11 : 12
+    readonly property int normalFontSize:
+        phoneLayout ? 11 : compactLayout ? 12 : 13
+    readonly property int largeFontSize:
+        phoneLayout ? 20 : compactLayout ? 24 : 27
+
     width: 1280
     height: 820
-    minimumWidth: Qt.platform.os === "android" ? 0 : 900
-    minimumHeight: Qt.platform.os === "android" ? 0 : 640
+    minimumWidth: Qt.platform.os === "android" ? 0 : 360
+    minimumHeight: Qt.platform.os === "android" ? 0 : 560
     visible: true
     title: "XDR CT-610"
 
@@ -27,9 +73,8 @@ ApplicationWindow {
     property color woodDark: "#4b2d1d"
     property color woodLight: "#795039"
 
-    // Nur Zustand der Tablet-Oberfläche:
-    // true = Verbindung zu xdrd gewünscht
-    // false = ausgeschaltet
+    // Zustand des POWER-Schalters in der Oberfläche. Das xdrd-Protokoll
+    // bleibt unverändert: ON verbindet, OFF trennt die TCP-Verbindung.
     property bool powerEnabled: false
 
     property var bandwidthValues: [0, 56000, 64000, 72000, 84000, 97000,
@@ -51,24 +96,22 @@ ApplicationWindow {
     function connectOrDisconnect() {
         if (powerEnabled) {
             powerEnabled = false
-
             if (xdrClient.connected)
                 xdrClient.disconnectFromServer()
         } else {
             powerEnabled = true
-
-            xdrClient.connectToServer(hostField.text,
-                                      Number(portField.text),
-                                      passwordField.text)
+            if (!xdrClient.connected) {
+                xdrClient.connectToServer(hostField.text,
+                                          Number(portField.text),
+                                          passwordField.text)
+            }
         }
     }
 
     function powerOffAndQuit() {
         powerEnabled = false
-
         if (xdrClient.connected)
             xdrClient.disconnectFromServer()
-
         Qt.quit()
     }
 
@@ -124,7 +167,9 @@ ApplicationWindow {
     Drawer {
         id: settingsDrawer
         edge: Qt.RightEdge
-        width: Math.min(window.width * 0.44, 520)
+        width: window.phoneLayout
+               ? window.width
+               : Math.min(window.width * 0.44, 520)
         height: window.height
         modal: true
 
@@ -140,16 +185,16 @@ ApplicationWindow {
 
             ColumnLayout {
                 width: parent.width
-                spacing: 14
+                spacing: window.sectionSpacing
 
                 Label {
                     Layout.fillWidth: true
-                    Layout.leftMargin: 20
-                    Layout.rightMargin: 20
-                    Layout.topMargin: 18
+                    Layout.leftMargin: window.phoneLayout ? 14 : 20
+                    Layout.rightMargin: window.phoneLayout ? 14 : 20
+                    Layout.topMargin: window.phoneLayout ? 14 : 18
                     text: "XDR · EINSTELLUNGEN"
                     color: window.ink
-                    font.pixelSize: 22
+                    font.pixelSize: window.phoneLayout ? 19 : 22
                     font.bold: true
                 }
 
@@ -165,9 +210,9 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     Layout.leftMargin: 20
                     Layout.rightMargin: 20
-                    columns: 2
+                    columns: window.phoneLayout ? 1 : 2
                     columnSpacing: 12
-                    rowSpacing: 10
+                    rowSpacing: window.phoneLayout ? 6 : 10
 
                     Label { text: "IP-Adresse"; color: window.ink }
                     TextField {
@@ -200,7 +245,7 @@ ApplicationWindow {
 
                 VintageButton {
                     Layout.alignment: Qt.AlignHCenter
-                    implicitWidth: 230
+                    implicitWidth: window.phoneLayout ? 210 : 230
                     text: xdrClient.connected ? "VERBINDUNG TRENNEN" : "VERBINDEN"
                     onClicked: window.connectOrDisconnect()
                 }
@@ -213,9 +258,9 @@ ApplicationWindow {
 
                     GridLayout {
                         anchors.fill: parent
-                        columns: 2
+                        columns: window.phoneLayout ? 1 : 2
                         columnSpacing: 12
-                        rowSpacing: 10
+                        rowSpacing: window.phoneLayout ? 6 : 10
 
                         Label { text: "Betriebsart" }
                         Switch {
@@ -260,24 +305,35 @@ ApplicationWindow {
                             onActivated: xdrClient.setAgc(currentIndex)
                         }
 
-                        Label { text: "Zusatzverstärkung" }
-                        RowLayout {
+                        Label { text: "Signalverarbeitung" }
+                        ColumnLayout {
+                            spacing: 2
+
                             CheckBox {
                                 enabled: xdrClient.ready
-                                text: "RF"
-                                checked: xdrClient.rfGain
+                                text: "Channel Equalizer"
+                                checked: xdrClient.channelEqualizer
                                 onToggled: {
-                                    if (checked !== xdrClient.rfGain)
-                                        xdrClient.setRfGain(checked)
+                                    if (checked !==
+                                        xdrClient.channelEqualizer) {
+                                        xdrClient.setChannelEqualizer(
+                                            checked)
+                                    }
                                 }
                             }
+
                             CheckBox {
                                 enabled: xdrClient.ready
-                                text: "IF"
-                                checked: xdrClient.ifGain
+                                text: "iMS / Multipath"
+                                checked:
+                                    xdrClient.multipathSuppression
                                 onToggled: {
-                                    if (checked !== xdrClient.ifGain)
-                                        xdrClient.setIfGain(checked)
+                                    if (checked !==
+                                        xdrClient.multipathSuppression) {
+                                        xdrClient
+                                            .setMultipathSuppression(
+                                                checked)
+                                    }
                                 }
                             }
                         }
@@ -292,9 +348,9 @@ ApplicationWindow {
 
                     GridLayout {
                         anchors.fill: parent
-                        columns: 2
+                        columns: window.phoneLayout ? 1 : 2
                         columnSpacing: 12
-                        rowSpacing: 10
+                        rowSpacing: window.phoneLayout ? 6 : 10
 
                         Label { text: "Kleiner Schritt" }
                         ComboBox {
@@ -345,21 +401,46 @@ ApplicationWindow {
         }
     }
 
-    ScrollView {
-        id: mainScroll
+    PhoneView {
+        id: phoneView
 
         anchors.fill: parent
-        anchors.margins: 18
+        visible: window.phoneLayout
+        controller: xdrClient
+        powerEnabled: window.powerEnabled
 
-        contentWidth: Math.max(availableWidth, 850)
+        onPowerToggleRequested: {
+            window.connectOrDisconnect()
+        }
+
+        onPowerQuitRequested: {
+            window.powerOffAndQuit()
+        }
+
+        onSettingsRequested: {
+            settingsDrawer.open()
+        }
+    }
+
+    ScrollView {
+        id: mainScroll
+        visible: !window.phoneLayout
+
+        anchors.fill: parent
+        anchors.margins: window.outerMargin
+
+        contentWidth: availableWidth
         contentHeight: frontPanel.height
         clip: true
+        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+        ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
         Rectangle {
             id: frontPanel
 
-            width: mainScroll.contentWidth
-            implicitHeight: faceColumn.implicitHeight + 44
+            width: mainScroll.availableWidth
+            implicitHeight: faceColumn.implicitHeight + 2 * window.panelMargin
+            height: implicitHeight
             radius: 3
             border.width: 1
             border.color: "#70706a"
@@ -374,53 +455,76 @@ ApplicationWindow {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: parent.top
-                anchors.margins: 22
-                spacing: 14
+                anchors.margins: window.panelMargin
+                spacing: window.sectionSpacing
 
-                RowLayout {
+                // Auf dem Handy stehen Marke sowie Status-/Einstellungstasten
+                // in zwei Zeilen. Auf großen Displays bleibt alles in einer Zeile.
+                GridLayout {
                     Layout.fillWidth: true
-                    spacing: 10
+                    columns: window.phoneLayout ? 2 : 4
+                    columnSpacing: window.phoneLayout ? 8 : 10
+                    rowSpacing: 8
 
-                    Rectangle {
-                        width: 18
-                        height: 18
-                        radius: 9
-                        color: "transparent"
-                        border.color: window.ink
-                        border.width: 2
-                        Text {
-                            anchors.centerIn: parent
-                            text: "Y"
+                    RowLayout {
+                        Layout.row: 0
+                        Layout.column: 0
+                        Layout.columnSpan: window.phoneLayout ? 2 : 1
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        Rectangle {
+                            width: 18
+                            height: 18
+                            radius: 9
+                            color: "transparent"
+                            border.color: window.ink
+                            border.width: 2
+                            Text {
+                                anchors.centerIn: parent
+                                text: "Y"
+                                color: window.ink
+                                font.pixelSize: 11
+                                font.bold: true
+                            }
+                        }
+
+                        Label {
+                            text: "XDR TABLET"
                             color: window.ink
-                            font.pixelSize: 11
+                            font.pixelSize: window.phoneLayout ? 15 : 16
                             font.bold: true
+                            font.letterSpacing: 1.2
+                        }
+
+                        Label {
+                            visible: !window.phoneLayout
+                            Layout.fillWidth: true
+                            text: "NATURAL SOUND FM STEREO TUNER"
+                            color: window.mutedInk
+                            font.pixelSize: 12
+                            font.letterSpacing: 0.8
+                            elide: Text.ElideRight
                         }
                     }
 
-                    Label {
-                        text: "XDR TABLET"
-                        color: window.ink
-                        font.pixelSize: 16
-                        font.bold: true
-                        font.letterSpacing: 1.2
+                    Item {
+                        visible: !window.phoneLayout
+                        Layout.row: 0
+                        Layout.column: 1
+                        Layout.fillWidth: true
                     }
-                    Label {
-                        text: "NATURAL SOUND FM STEREO TUNER"
-                        color: window.mutedInk
-                        font.pixelSize: 12
-                        font.letterSpacing: 0.8
-                    }
-
-                    Item { Layout.fillWidth: true }
 
                     VintageButton {
                         id: statusButton
-
-                        Layout.preferredWidth: window.width < 900 ? 118 : 138
+                        Layout.row: window.phoneLayout ? 1 : 0
+                        Layout.column: window.phoneLayout ? 0 : 2
+                        Layout.fillWidth: window.phoneLayout
+                        Layout.minimumWidth: window.phoneLayout ? 118 : window.headerControlWidth
+                        Layout.preferredWidth: window.headerControlWidth
                         Layout.minimumHeight: window.headerControlHeight
                         Layout.preferredHeight: window.headerControlHeight
                         Layout.maximumHeight: window.headerControlHeight
-
                         enabled: false
 
                         contentItem: Text {
@@ -428,30 +532,31 @@ ApplicationWindow {
                                   : xdrClient.ready ? "● ONLINE"
                                   : xdrClient.connected ? "◐ VERBINDUNG"
                                   : "○ OFFLINE"
-
                             color: !window.powerEnabled ? "#666660"
                                    : xdrClient.ready ? "#315b37"
                                    : xdrClient.connected ? "#775a20"
                                    : "#6c3434"
-
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
-
-                            font.pixelSize: window.width < 900 ? 11 : 13
+                            font.pixelSize: window.normalFontSize
                             font.bold: true
                             fontSizeMode: Text.Fit
-                            minimumPixelSize: 10
+                            minimumPixelSize: 9
                             wrapMode: Text.NoWrap
                             maximumLineCount: 1
+                            clip: true
                         }
                     }
 
                     VintageButton {
-                        Layout.preferredWidth: window.width < 900 ? 118 : 138
+                        Layout.row: window.phoneLayout ? 1 : 0
+                        Layout.column: window.phoneLayout ? 1 : 3
+                        Layout.fillWidth: window.phoneLayout
+                        Layout.minimumWidth: window.phoneLayout ? 118 : window.headerControlWidth
+                        Layout.preferredWidth: window.phoneLayout ? 150 : window.headerControlWidth
                         Layout.minimumHeight: window.headerControlHeight
                         Layout.preferredHeight: window.headerControlHeight
                         Layout.maximumHeight: window.headerControlHeight
-
                         text: "EINSTELLUNGEN"
                         onClicked: settingsDrawer.open()
                     }
@@ -459,20 +564,21 @@ ApplicationWindow {
 
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: Math.max(190, Math.min(235, window.height * 0.29))
+                    Layout.preferredHeight: window.scaleHeight
+                    Layout.minimumHeight: 150
                     color: "#22231f"
                     border.color: "#5b5b55"
-                    border.width: 5
+                    border.width: window.phoneLayout ? 3 : 5
 
                     Rectangle {
                         anchors.fill: parent
-                        anchors.margins: 12
+                        anchors.margins: window.phoneLayout ? 7 : 12
                         color: window.scaleGlass
                         border.color: "#77776f"
 
                         FrequencyScale {
                             anchors.fill: parent
-                            anchors.margins: 5
+                            anchors.margins: window.phoneLayout ? 2 : 5
                             frequencyKhz: xdrClient.frequencyKhz
                             minimumKhz: xdrClient.minimumFmFrequencyKhz
                             maximumKhz: xdrClient.maximumFmFrequencyKhz
@@ -484,60 +590,72 @@ ApplicationWindow {
                         Rectangle {
                             anchors.right: parent.right
                             anchors.bottom: parent.bottom
-                            anchors.rightMargin: 18
-                            anchors.bottomMargin: 14
-                            width: 190
-                            height: 38
+                            anchors.rightMargin: window.phoneLayout ? 7 : 18
+                            anchors.bottomMargin: window.phoneLayout ? 7 : 14
+                            width: window.phoneLayout
+                                   ? Math.min(176, parent.width - 14)
+                                   : 190
+                            height: window.phoneLayout ? 34 : 38
                             color: "#c9c9bd"
                             border.color: "#85857d"
+
                             Label {
-                                anchors.centerIn: parent
+                                anchors.fill: parent
+                                anchors.leftMargin: 5
+                                anchors.rightMargin: 5
                                 text: (xdrClient.frequencyKhz / 1000).toFixed(3) + " MHz"
                                 color: window.ink
                                 font.family: "monospace"
-                                font.pixelSize: 20
+                                font.pixelSize: window.phoneLayout ? 16 : 20
                                 font.bold: true
+                                fontSizeMode: Text.Fit
+                                minimumPixelSize: 12
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                                wrapMode: Text.NoWrap
                             }
                         }
                     }
                 }
 
-                Item {
+                // Echte responsive Anordnung:
+                // Desktop: POWER | SIGNAL | QUALITY | TUNING | DREHKNOPF
+                // Handy/Tablet: 2 Spalten, TUNING anschließend über volle Breite.
+                GridLayout {
+                    id: controlsGrid
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 225
+                    columns: window.wideLayout ? 5 : 2
+                    columnSpacing: window.controlSpacing
+                    rowSpacing: window.controlSpacing
 
-                    RowLayout {
-                        anchors.left: parent.left
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        anchors.right: fmTuningColumn.left
-                        anchors.rightMargin: 18
-                        spacing: 18
-
-
-                        ColumnLayout {
-                        Layout.preferredWidth: 145
-                        Layout.fillHeight: true
-                        spacing: 10
+                    ColumnLayout {
+                        Layout.row: 0
+                        Layout.column: 0
+                        Layout.fillWidth: !window.wideLayout
+                        Layout.preferredWidth: window.wideLayout ? 145 : -1
+                        Layout.alignment: Qt.AlignTop | Qt.AlignHCenter
+                        spacing: 8
 
                         Label {
                             Layout.alignment: Qt.AlignHCenter
                             text: "POWER"
                             color: window.ink
-                            font.pixelSize: 11
+                            font.pixelSize: window.smallFontSize
                             font.bold: true
                         }
 
                         Rectangle {
                             Layout.alignment: Qt.AlignHCenter
-                            width: 64
-                            height: 92
+                            width: window.phoneLayout ? 58 : 64
+                            height: window.phoneLayout ? 84 : 92
                             color: "#b8b8b1"
                             border.color: "#777770"
 
                             Rectangle {
                                 anchors.horizontalCenter: parent.horizontalCenter
-                                y: window.powerEnabled ? 13 : 46
+                                y: window.powerEnabled
+                                   ? (window.phoneLayout ? 11 : 13)
+                                   : (window.phoneLayout ? 42 : 46)
                                 width: 24
                                 height: 34
                                 radius: 2
@@ -549,11 +667,16 @@ ApplicationWindow {
                             MouseArea {
                                 anchors.fill: parent
                                 pressAndHoldInterval: 1200
+                                property bool held: false
 
-                                onClicked: window.connectOrDisconnect()
-
+                                onPressed: held = false
                                 onPressAndHold: {
+                                    held = true
                                     window.powerOffAndQuit()
+                                }
+                                onClicked: {
+                                    if (!held)
+                                        window.connectOrDisconnect()
                                 }
                             }
                         }
@@ -568,7 +691,7 @@ ApplicationWindow {
 
                         VintageButton {
                             Layout.alignment: Qt.AlignHCenter
-                            implicitWidth: 130
+                            implicitWidth: window.phoneLayout ? 118 : 130
                             text: xdrClient.forcedMono ? "MONO" : "AUTO"
                             enabled: xdrClient.ready && !xdrClient.seeking
                             onClicked: xdrClient.setForcedMono(!xdrClient.forcedMono)
@@ -576,18 +699,17 @@ ApplicationWindow {
                     }
 
                     ColumnLayout {
-                        Layout.preferredWidth: 220
-                        Layout.minimumWidth: 220
-                        Layout.maximumWidth: 220
-                        Layout.fillWidth: false
-                        Layout.alignment: Qt.AlignVCenter
+                        Layout.row: window.wideLayout ? 0 : 1
+                        Layout.column: window.wideLayout ? 1 : 0
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: window.wideLayout ? window.meterWidth : -1
+                        Layout.alignment: Qt.AlignTop
                         spacing: 4
 
                         VintageMeter {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 120
-                            Layout.maximumHeight: 120
-
+                            Layout.preferredHeight: window.meterHeight
+                            Layout.maximumHeight: window.meterHeight
                             title: ""
                             value: xdrClient.signalAvailable
                                    ? xdrClient.signalLevel : 0
@@ -602,103 +724,118 @@ ApplicationWindow {
                             Layout.alignment: Qt.AlignHCenter
                             text: "SIGNAL"
                             color: window.ink
-                            font.pixelSize: 12
+                            font.pixelSize: window.normalFontSize
                             font.bold: true
                             font.letterSpacing: 1.0
                         }
                     }
-ColumnLayout {
-    Layout.preferredWidth: 220
-    Layout.minimumWidth: 220
-    Layout.maximumWidth: 220
-    Layout.fillWidth: false
-    Layout.alignment: Qt.AlignVCenter
-    spacing: 4
-
-    VintageMeter {
-        Layout.fillWidth: true
-        Layout.preferredHeight: 120
-        Layout.maximumHeight: 120
-
-        title: ""
-        value: window.qualityValue()
-        minimumValue: 0
-        maximumValue: 100
-        valueText: (xdrClient.cci >= 0 ? xdrClient.cci : "–")
-                   + " / "
-                   + (xdrClient.aci >= 0 ? xdrClient.aci : "–")
-    }
-
-    Label {
-        Layout.alignment: Qt.AlignHCenter
-        text: "FM QUALITY"
-        color: window.ink
-        font.pixelSize: 12
-        font.bold: true
-        font.letterSpacing: 1.0
-    }
-}
 
                     ColumnLayout {
+                        Layout.row: window.wideLayout ? 0 : 1
+                        Layout.column: window.wideLayout ? 2 : 1
                         Layout.fillWidth: true
-                        Layout.fillHeight: true
+                        Layout.preferredWidth: window.wideLayout ? window.meterWidth : -1
+                        Layout.alignment: Qt.AlignTop
+                        spacing: 4
+
+                        VintageMeter {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: window.meterHeight
+                            Layout.maximumHeight: window.meterHeight
+                            title: ""
+                            value: window.qualityValue()
+                            minimumValue: 0
+                            maximumValue: 100
+                            valueText: (xdrClient.cci >= 0 ? xdrClient.cci : "–")
+                                       + " / "
+                                       + (xdrClient.aci >= 0 ? xdrClient.aci : "–")
+                        }
+
+                        Label {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: "FM QUALITY"
+                            color: window.ink
+                            font.pixelSize: window.normalFontSize
+                            font.bold: true
+                            font.letterSpacing: 1.0
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.row: window.wideLayout ? 0 : 2
+                        Layout.column: window.wideLayout ? 3 : 0
+                        Layout.columnSpan: window.wideLayout ? 1 : 2
+                        Layout.fillWidth: true
+                        Layout.alignment: Qt.AlignTop
                         spacing: 9
 
                         Label {
                             Layout.alignment: Qt.AlignHCenter
                             text: "TUNING"
                             color: window.ink
-                            font.pixelSize: 12
+                            font.pixelSize: window.normalFontSize
                             font.bold: true
                             font.letterSpacing: 1.0
                         }
 
-                        RowLayout {
-                            Layout.alignment: Qt.AlignHCenter
-                            spacing: 8
+                        GridLayout {
+                            Layout.fillWidth: true
+                            columns: window.phoneLayout ? 2 : 4
+                            columnSpacing: 8
+                            rowSpacing: 8
+
                             VintageButton {
-                                implicitWidth: 98
+                                Layout.fillWidth: true
+                                Layout.minimumWidth: 0
                                 text: "− " + (xdrClient.largeStepKhz / 1000) + " MHz"
                                 enabled: xdrClient.ready && !xdrClient.seeking
                                 onClicked: xdrClient.stepLarge(-1)
                             }
                             VintageButton {
-                                implicitWidth: 98
+                                Layout.fillWidth: true
+                                Layout.minimumWidth: 0
                                 text: "− " + xdrClient.smallStepKhz + " kHz"
                                 enabled: xdrClient.ready && !xdrClient.seeking
                                 onClicked: xdrClient.stepSmall(-1)
                             }
                             VintageButton {
-                                implicitWidth: 98
+                                Layout.fillWidth: true
+                                Layout.minimumWidth: 0
                                 text: "+ " + xdrClient.smallStepKhz + " kHz"
                                 enabled: xdrClient.ready && !xdrClient.seeking
                                 onClicked: xdrClient.stepSmall(1)
                             }
                             VintageButton {
-                                implicitWidth: 98
+                                Layout.fillWidth: true
+                                Layout.minimumWidth: 0
                                 text: "+ " + (xdrClient.largeStepKhz / 1000) + " MHz"
                                 enabled: xdrClient.ready && !xdrClient.seeking
                                 onClicked: xdrClient.stepLarge(1)
                             }
                         }
 
-                        RowLayout {
-                            Layout.alignment: Qt.AlignHCenter
-                            spacing: 8
+                        GridLayout {
+                            Layout.fillWidth: true
+                            columns: 3
+                            columnSpacing: 8
+
                             VintageButton {
-                                implicitWidth: 120
+                                Layout.fillWidth: true
+                                Layout.minimumWidth: 0
                                 text: "SEEK ◀"
                                 enabled: xdrClient.ready && !xdrClient.seeking
                                 onClicked: xdrClient.startSeek(-1)
                             }
                             VintageButton {
-                                implicitWidth: 110
+                                Layout.fillWidth: true
+                                Layout.minimumWidth: 0
                                 text: "■ STOP"
                                 enabled: xdrClient.seeking
                                 onClicked: xdrClient.stopSeek()
                             }
                             VintageButton {
-                                implicitWidth: 120
+                                Layout.fillWidth: true
+                                Layout.minimumWidth: 0
                                 text: "SEEK ▶"
                                 enabled: xdrClient.ready && !xdrClient.seeking
                                 onClicked: xdrClient.startSeek(1)
@@ -706,45 +843,47 @@ ColumnLayout {
                         }
 
                         Label {
-                            Layout.alignment: Qt.AlignHCenter
+                            Layout.fillWidth: true
+                            horizontalAlignment: Text.AlignHCenter
                             text: xdrClient.seeking
-                                  ? (xdrClient.seekDirection > 0 ? "SUCHLAUF AUFWÄRTS" : "SUCHLAUF ABWÄRTS")
+                                  ? (xdrClient.seekDirection > 0
+                                     ? "SUCHLAUF AUFWÄRTS"
+                                     : "SUCHLAUF ABWÄRTS")
                                   : xdrClient.receptionModeText
                             color: xdrClient.seeking ? "#7a5015" : window.mutedInk
-                            font.pixelSize: 12
+                            font.pixelSize: window.smallFontSize
                             font.bold: true
+                            elide: Text.ElideRight
                         }
                     }
-                    }
 
-                    // Dieser Block ist unabhängig vom RowLayout direkt am
-                    // rechten Rand verankert. Dadurch bleibt der Knopf beim
-                    // Vergrößern und Verkleinern immer exakt 35 Pixel vom Rand der Aluminiumfront entfernt.
+                    // Auf breiten Displays bleiben es zusammen mit dem
+                    // Panelrand genau 35 Pixel bis zum rechten Aluminiumrand.
                     ColumnLayout {
-                        id: fmTuningColumn
-
-                        width: 170
-                        anchors.right: parent.right
-                        anchors.rightMargin: 13
-                        anchors.verticalCenter: parent.verticalCenter
+                        Layout.row: 0
+                        Layout.column: window.wideLayout ? 4 : 1
+                        Layout.fillWidth: !window.wideLayout
+                        Layout.preferredWidth: window.wideLayout ? 170 : -1
+                        Layout.alignment: Qt.AlignTop | Qt.AlignHCenter
+                        Layout.rightMargin: window.wideLayout ? 13 : 0
                         spacing: 6
 
                         Label {
-                            Layout.preferredWidth: 135
-                            Layout.alignment: Qt.AlignRight
+                            Layout.preferredWidth: window.tuningKnobSize
+                            Layout.alignment: Qt.AlignHCenter
                             horizontalAlignment: Text.AlignHCenter
                             text: "FM TUNING"
                             color: window.ink
-                            font.pixelSize: 11
+                            font.pixelSize: window.smallFontSize
                             font.bold: true
                         }
 
                         TuningKnob {
-                            Layout.preferredWidth: 135
-                            Layout.preferredHeight: 135
-                            Layout.minimumWidth: 135
-                            Layout.minimumHeight: 135
-                            Layout.alignment: Qt.AlignRight
+                            Layout.preferredWidth: window.tuningKnobSize
+                            Layout.preferredHeight: window.tuningKnobSize
+                            Layout.minimumWidth: window.tuningKnobSize
+                            Layout.minimumHeight: window.tuningKnobSize
+                            Layout.alignment: Qt.AlignHCenter
                             enabled: xdrClient.ready && !xdrClient.seeking
 
                             onStepRequested: function(direction) {
@@ -753,80 +892,104 @@ ColumnLayout {
                         }
 
                         Label {
-                            Layout.preferredWidth: 170
-                            Layout.alignment: Qt.AlignRight
+                            Layout.fillWidth: true
+                            Layout.alignment: Qt.AlignHCenter
                             horizontalAlignment: Text.AlignHCenter
-                            text: "ziehen · klicken · Mausrad"
+                            text: window.phoneLayout
+                                  ? "ziehen · klicken"
+                                  : "ziehen · klicken · Mausrad"
                             color: window.mutedInk
-                            font.pixelSize: 10
+                            font.pixelSize: window.smallFontSize
+                            wrapMode: Text.WordWrap
                         }
                     }
                 }
 
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 142
+                    Layout.preferredHeight: rdsLayout.implicitHeight
+                                            + 2 * (window.phoneLayout ? 10 : 14)
+                    Layout.minimumHeight: window.phoneLayout ? 176 : 142
                     color: "#171915"
                     border.color: "#55564f"
                     border.width: 3
 
-                    RowLayout {
+                    GridLayout {
+                        id: rdsLayout
                         anchors.fill: parent
-                        anchors.margins: 14
-                        spacing: 18
+                        anchors.margins: window.phoneLayout ? 10 : 14
+                        columns: window.phoneLayout ? 1 : 3
+                        columnSpacing: 18
+                        rowSpacing: 10
 
                         ColumnLayout {
+                            Layout.row: 0
+                            Layout.column: 0
                             Layout.fillWidth: true
-                            Layout.fillHeight: true
                             spacing: 5
 
                             RowLayout {
                                 Layout.fillWidth: true
+
                                 Label {
                                     Layout.fillWidth: true
                                     text: xdrClient.psText.length > 0
-                                          ? xdrClient.psText : "RDS / PROGRAM SERVICE"
-                                    color: xdrClient.rdsActive ? "#e6dba8" : "#77766b"
+                                          ? xdrClient.psText
+                                          : "RDS / PROGRAM SERVICE"
+                                    color: xdrClient.rdsActive
+                                           ? "#e6dba8" : "#77766b"
                                     font.family: "monospace"
-                                    font.pixelSize: 27
+                                    font.pixelSize: window.largeFontSize
                                     font.bold: true
                                     elide: Text.ElideRight
                                 }
+
                                 Label {
                                     text: xdrClient.rdsActive ? "● RDS" : "○ RDS"
-                                    color: xdrClient.rdsActive ? "#d7b45d" : "#65655f"
-                                    font.pixelSize: 13
+                                    color: xdrClient.rdsActive
+                                           ? "#d7b45d" : "#65655f"
+                                    font.pixelSize: window.normalFontSize
                                     font.bold: true
                                 }
                             }
 
                             Label {
                                 Layout.fillWidth: true
-                                Layout.fillHeight: true
+                                Layout.preferredHeight: window.phoneLayout ? 68 : 72
                                 text: xdrClient.radioText.length > 0
-                                      ? xdrClient.radioText : "Radiotext wird empfangen …"
-                                color: xdrClient.radioText.length > 0 ? "#d2d0bd" : "#67675f"
+                                      ? xdrClient.radioText
+                                      : "Radiotext wird empfangen …"
+                                color: xdrClient.radioText.length > 0
+                                       ? "#d2d0bd" : "#67675f"
                                 font.family: "monospace"
-                                font.pixelSize: 16
+                                font.pixelSize: window.phoneLayout ? 13 : 16
                                 wrapMode: Text.WordWrap
                                 verticalAlignment: Text.AlignVCenter
                             }
                         }
 
                         Rectangle {
-                            width: 1
-                            Layout.fillHeight: true
+                            Layout.row: window.phoneLayout ? 1 : 0
+                            Layout.column: window.phoneLayout ? 0 : 1
+                            Layout.fillWidth: window.phoneLayout
+                            Layout.fillHeight: !window.phoneLayout
+                            Layout.preferredWidth: window.phoneLayout ? -1 : 1
+                            Layout.preferredHeight: window.phoneLayout ? 1 : -1
                             color: "#50514a"
                         }
 
                         GridLayout {
-                            Layout.preferredWidth: 245
+                            Layout.row: window.phoneLayout ? 2 : 0
+                            Layout.column: window.phoneLayout ? 0 : 2
+                            Layout.fillWidth: true
+                            Layout.preferredWidth: window.phoneLayout ? -1 : 245
                             columns: 2
                             columnSpacing: 10
                             rowSpacing: 7
 
                             Label { text: "PI"; color: "#85857b" }
                             Label {
+                                Layout.fillWidth: true
                                 text: xdrClient.piCode
                                 color: "#ded8b5"
                                 font.family: "monospace"
@@ -834,18 +997,21 @@ ColumnLayout {
                             }
                             Label { text: "PTY"; color: "#85857b" }
                             Label {
-                                text: xdrClient.ptyCode >= 0 ? xdrClient.ptyText : "–"
+                                Layout.fillWidth: true
+                                text: xdrClient.ptyCode >= 0
+                                      ? xdrClient.ptyText : "–"
                                 color: "#ded8b5"
                                 elide: Text.ElideRight
-                                Layout.fillWidth: true
                             }
                             Label { text: "BW"; color: "#85857b" }
                             Label {
+                                Layout.fillWidth: true
                                 text: window.bandwidthLabel(xdrClient.bandwidthHz)
                                 color: "#ded8b5"
                             }
                             Label { text: "RDS"; color: "#85857b" }
                             Label {
+                                Layout.fillWidth: true
                                 text: xdrClient.rdsGroupCount + " Gruppen"
                                 color: "#ded8b5"
                             }
@@ -853,25 +1019,34 @@ ColumnLayout {
                     }
                 }
 
-                RowLayout {
+                GridLayout {
                     Layout.fillWidth: true
                     Layout.bottomMargin: 4
-                    spacing: 12
+                    columns: window.phoneLayout ? 1 : 2
+                    columnSpacing: 12
+                    rowSpacing: 2
 
                     Label {
                         Layout.fillWidth: true
                         text: xdrClient.statusText
                         color: window.ink
-                        font.pixelSize: 12
+                        font.pixelSize: window.smallFontSize
                         elide: Text.ElideRight
                     }
+
                     Label {
+                        Layout.fillWidth: window.phoneLayout
+                        horizontalAlignment: window.phoneLayout
+                                             ? Text.AlignLeft
+                                             : Text.AlignRight
                         text: "FM 87,5–108 MHz  ·  "
                               + (xdrClient.bandwidthSettingHz > 0
-                                 ? "BW " + window.bandwidthLabel(xdrClient.bandwidthSettingHz)
+                                 ? "BW " + window.bandwidthLabel(
+                                               xdrClient.bandwidthSettingHz)
                                  : "BW AUTO")
                         color: window.mutedInk
-                        font.pixelSize: 11
+                        font.pixelSize: window.smallFontSize
+                        elide: Text.ElideRight
                     }
                 }
             }
