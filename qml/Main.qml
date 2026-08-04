@@ -401,30 +401,8 @@ ApplicationWindow {
         }
     }
 
-    PhoneView {
-        id: phoneView
-
-        anchors.fill: parent
-        visible: window.phoneLayout
-        controller: xdrClient
-        powerEnabled: window.powerEnabled
-
-        onPowerToggleRequested: {
-            window.connectOrDisconnect()
-        }
-
-        onPowerQuitRequested: {
-            window.powerOffAndQuit()
-        }
-
-        onSettingsRequested: {
-            settingsDrawer.open()
-        }
-    }
-
     ScrollView {
         id: mainScroll
-        visible: !window.phoneLayout
 
         anchors.fill: parent
         anchors.margins: window.outerMargin
