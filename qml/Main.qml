@@ -565,34 +565,6 @@ ApplicationWindow {
                             pointerColor: window.amber
                         }
 
-                        Rectangle {
-                            anchors.right: parent.right
-                            anchors.bottom: parent.bottom
-                            anchors.rightMargin: window.phoneLayout ? 7 : 18
-                            anchors.bottomMargin: window.phoneLayout ? 7 : 14
-                            width: window.phoneLayout
-                                   ? Math.min(176, parent.width - 14)
-                                   : 190
-                            height: window.phoneLayout ? 34 : 38
-                            color: "#c9c9bd"
-                            border.color: "#85857d"
-
-                            Label {
-                                anchors.fill: parent
-                                anchors.leftMargin: 5
-                                anchors.rightMargin: 5
-                                text: (xdrClient.frequencyKhz / 1000).toFixed(3) + " MHz"
-                                color: window.ink
-                                font.family: "monospace"
-                                font.pixelSize: window.phoneLayout ? 16 : 20
-                                font.bold: true
-                                fontSizeMode: Text.Fit
-                                minimumPixelSize: 12
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                                wrapMode: Text.NoWrap
-                            }
-                        }
                     }
                 }
 
@@ -850,7 +822,7 @@ ApplicationWindow {
                             Layout.preferredWidth: window.tuningKnobSize
                             Layout.alignment: Qt.AlignHCenter
                             horizontalAlignment: Text.AlignHCenter
-                            text: "FM TUNING"
+                            text: (xdrClient.frequencyKhz / 1000).toFixed(3) + " MHz"
                             color: window.ink
                             font.pixelSize: window.smallFontSize
                             font.bold: true
