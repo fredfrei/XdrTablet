@@ -234,27 +234,38 @@ void XdrClient::startSeek(int direction)
         setStatusText(QStringLiteral("Tuner ist noch nicht bereit"));
         return;
     }
+
     if (direction != -1 && direction != 1)
         return;
 
-    const bool stateChanged = !seeking_ || seekDirection_ != direction;
+    if (seeking_)
+        return;
+
+    seekEvaluationTimer_.stop();
     seeking_ = true;
     seekDirection_ = direction;
     seekSignalSum_ = 0.0;
     seekSignalSamples_ = 0;
-    if (stateChanged)
-        emit seekingChanged();
+    emit seekingChanged();
 
     setStatusText(direction > 0
                       ? QStringLiteral("Suchlauf aufwärts …")
                       : QStringLiteral("Suchlauf abwärts …"));
-    advanceSeek();
+
+    // PE5PVB: C1 = Suchlauf abwärts, C2 = Suchlauf aufwärts.
+    sendLine(direction > 0
+                 ? QStringLiteral("C2")
+                 : QStringLiteral("C1"));
 }
 
 void XdrClient::stopSeek()
 {
-    if (seeking_)
-        finishSeek(QStringLiteral("Suchlauf gestoppt"));
+    if (!seeking_)
+        return;
+
+    // Ein T-Befehl beendet den Suchlauf in der PE5PVB-Firmware.
+    sendFrequencyCommand(frequencyKhz_);
+    finishSeek(QStringLiteral("Suchlauf gestoppt"));
 }
 
 void XdrClient::setForcedMono(bool enabled)
@@ -528,27 +539,65 @@ void XdrClient::processLine(const QString &line)
         return;
     }
 
-    if (line.startsWith('T')) {
-        const QString frequencyField = line.mid(1).section(',', 0, 0).trimmed();
+        if (line.startsWith('T')) {
+        const QString frequencyField =
+            line.mid(1).section(',', 0, 0).trimmed();
         bool ok = false;
         const int value = frequencyField.toInt(&ok);
-        if (ok && value >= MinimumFmFrequencyKhz && value <= MaximumFmFrequencyKhz) {
+
+        if (ok &&
+            value >= MinimumFmFrequencyKhz &&
+            value <= MaximumFmFrequencyKhz) {
             const bool changed = value != frequencyKhz_;
             frequencyKhz_ = value;
+
             if (changed) {
                 clearRdsData();
                 emit frequencyChanged();
             }
 
+            saveFrequency(value);
+
+            if (!seeking_)
+                setStatusText(QStringLiteral("Tuner bereit"));
+        }
+        return;
+    }
+
+    if (line.startsWith('C')) {
+        bool ok = false;
+        const int value = line.mid(1).toInt(&ok);
+
+        if (!ok)
+            return;
+
+        if (value == 1 || value == 2) {
+            const int direction = value == 2 ? 1 : -1;
+            const bool changed =
+                !seeking_ || seekDirection_ != direction;
+
+            seekEvaluationTimer_.stop();
+            seeking_ = true;
+            seekDirection_ = direction;
+            seekSignalSum_ = 0.0;
+            seekSignalSamples_ = 0;
+
+            if (changed)
+                emit seekingChanged();
+
+            setStatusText(direction > 0
+                              ? QStringLiteral("Suchlauf aufwärts …")
+                              : QStringLiteral("Suchlauf abwärts …"));
+        } else if (value == 0) {
             if (seeking_) {
-                seekSignalSum_ = 0.0;
-                seekSignalSamples_ = 0;
-                seekEvaluationTimer_.start();
+                finishSeek(
+                    QStringLiteral("Suchlauf beendet bei %1 MHz")
+                        .arg(frequencyKhz_ / 1000.0, 0, 'f', 3));
             } else {
-                saveFrequency(value);
                 setStatusText(QStringLiteral("Tuner bereit"));
             }
         }
+
         return;
     }
 
