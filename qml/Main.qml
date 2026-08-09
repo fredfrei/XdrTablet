@@ -5,7 +5,13 @@ import QtCore
 
 ApplicationWindow {
     id: window
-
+// Reine Tuner-Oberfläche ohne Fensterrand
+    flags: Qt.Window | Qt.FramelessWindowHint
+visible: true
+    Shortcut {
+    sequence: "Esc"
+    onActivated: window.visibility = Window.Windowed
+}
     // Echte responsive Größenklassen für Handy, Tablet und Desktop.
     readonly property bool phoneLayout: width < 650
     readonly property bool compactLayout: width >= 650 && width < 1180
@@ -21,11 +27,8 @@ ApplicationWindow {
     readonly property int controlSpacing:
         phoneLayout ? 8 : compactLayout ? 12 : 18
 
-    readonly property int headerControlHeight: Math.max(
-        phoneLayout ? 34 : 36,
-        Math.min(phoneLayout ? 40 : 44,
-                 Math.round(height * (phoneLayout ? 0.05 : 0.045)))
-    )
+    readonly property int headerControlHeight:
+        phoneLayout ? 38 : 40
     readonly property int headerControlWidth:
         phoneLayout
         ? Math.max(118, Math.min(150,
@@ -36,9 +39,7 @@ ApplicationWindow {
     readonly property int scaleHeight:
         phoneLayout
         ? Math.max(170, Math.min(220, Math.round(width * 0.52)))
-        : compactLayout
-          ? Math.max(190, Math.min(235, Math.round(height * 0.27)))
-          : Math.max(205, Math.min(245, Math.round(height * 0.29)))
+        : compactLayout ? 190 : 180
 
     readonly property int meterWidth:
         wideLayout
@@ -57,11 +58,18 @@ ApplicationWindow {
         phoneLayout ? 20 : compactLayout ? 24 : 27
 
     width: 1280
-    height: 820
+    height: 620
     minimumWidth: Qt.platform.os === "android" ? 0 : 360
-    minimumHeight: Qt.platform.os === "android" ? 0 : 560
-    visible: true
+    minimumHeight: Qt.platform.os === "android" ? 0 : 300
     title: "XDR CT-610"
+
+    Component.onCompleted: {
+        Qt.callLater(function() {
+            window.height =
+                Math.ceil(frontPanel.implicitHeight
+                          + 2 * window.outerMargin)
+        })
+    }
 
     property color aluminiumLight: "#eeeeea"
     property color aluminiumMid: "#c9c9c3"
@@ -115,13 +123,98 @@ ApplicationWindow {
         Qt.quit()
     }
 
+
+    readonly property var stationPresetFrequencies: [
+        appSettings.preset1Khz,
+        appSettings.preset2Khz,
+        appSettings.preset3Khz,
+        appSettings.preset4Khz,
+        appSettings.preset5Khz,
+        appSettings.preset6Khz
+    ]
+
+    function presetFrequency(index) {
+        switch (index) {
+        case 0: return appSettings.preset1Khz
+        case 1: return appSettings.preset2Khz
+        case 2: return appSettings.preset3Khz
+        case 3: return appSettings.preset4Khz
+        case 4: return appSettings.preset5Khz
+        case 5: return appSettings.preset6Khz
+        default: return 0
+        }
+    }
+
+    function setPresetFrequency(index, frequencyKhz) {
+        switch (index) {
+        case 0: appSettings.preset1Khz = frequencyKhz; break
+        case 1: appSettings.preset2Khz = frequencyKhz; break
+        case 2: appSettings.preset3Khz = frequencyKhz; break
+        case 3: appSettings.preset4Khz = frequencyKhz; break
+        case 4: appSettings.preset5Khz = frequencyKhz; break
+        case 5: appSettings.preset6Khz = frequencyKhz; break
+        }
+    }
+
+    function storePreset(index) {
+        const frequencyKhz = xdrClient.frequencyKhz
+
+        if (frequencyKhz < xdrClient.minimumFmFrequencyKhz
+                || frequencyKhz > xdrClient.maximumFmFrequencyKhz) {
+            return
+        }
+
+        setPresetFrequency(index, frequencyKhz)
+    }
+
+    function clearPreset(index) {
+        setPresetFrequency(index, 0)
+    }
+
+    function recallPreset(index) {
+        const frequencyKhz = presetFrequency(index)
+
+        if (frequencyKhz > 0
+                && xdrClient.ready
+                && !xdrClient.seeking) {
+            xdrClient.setFrequencyKhz(frequencyKhz)
+        }
+    }
+
+    function presetFrequencyText(index) {
+        const frequencyKhz = presetFrequency(index)
+        return frequencyKhz > 0
+               ? (frequencyKhz / 1000).toFixed(3) + " MHz"
+               : "–"
+    }
+
     function qualityValue() {
-        if (xdrClient.cci < 0 || xdrClient.aci < 0)
+        if (!xdrClient.signalAvailable
+                || xdrClient.cci < 0
+                || xdrClient.aci < 0) {
             return 0
-        return Math.max(0, Math.min(100, (xdrClient.cci + xdrClient.aci) / 2))
+        }
+
+        // Die PE5PVB-Firmware liefert hier WAM und USN.
+        // Kleine Werte bedeuten wenig Störungen.
+        const wam = xdrClient.cci
+        const usn = xdrClient.aci
+        const disturbance = Math.max(wam, usn)
+
+        return Math.round(
+                    Math.max(0, Math.min(100, 100 - disturbance)))
     }
 
     Settings {
+        id: appSettings
+
+        property int preset1Khz: 0
+        property int preset2Khz: 0
+        property int preset3Khz: 0
+        property int preset4Khz: 0
+        property int preset5Khz: 0
+        property int preset6Khz: 0
+
         property alias host: hostField.text
         property alias port: portField.text
     }
@@ -386,6 +479,72 @@ ApplicationWindow {
                     }
                 }
 
+                GroupBox {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 20
+                    Layout.rightMargin: 20
+                    title: "Senderspeicher"
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        spacing: window.phoneLayout ? 5 : 7
+
+                        Repeater {
+                            model: 6
+
+                            delegate: RowLayout {
+                                required property int index
+                                Layout.fillWidth: true
+                                spacing: 7
+
+                                Label {
+                                    Layout.preferredWidth: 28
+                                    text: "M" + (index + 1)
+                                    color: window.ink
+                                    font.bold: true
+                                }
+
+                                Label {
+                                    Layout.fillWidth: true
+                                    text: window.presetFrequencyText(index)
+                                    color: window.presetFrequency(index) > 0
+                                           ? window.ink
+                                           : window.mutedInk
+                                    font.family: "monospace"
+                                    elide: Text.ElideRight
+                                }
+
+                                Button {
+                                    text: "Speichern"
+                                    enabled: xdrClient.ready
+                                             && !xdrClient.seeking
+                                    onClicked:
+                                        window.storePreset(index)
+                                }
+
+                                Button {
+                                    text: "Löschen"
+                                    enabled:
+                                        window.presetFrequency(index) > 0
+                                    onClicked:
+                                        window.clearPreset(index)
+                                }
+                            }
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: "Kurzen Zeiger in der Skala antippen, "
+                                  + "um den Sender aufzurufen."
+                            color: window.mutedInk
+                            font.pixelSize: window.smallFontSize
+                            wrapMode: Text.WordWrap
+                        }
+                    }
+                }
+
+
+
                 Label {
                     Layout.fillWidth: true
                     Layout.leftMargin: 20
@@ -418,7 +577,7 @@ ApplicationWindow {
 
             width: mainScroll.availableWidth
             implicitHeight: faceColumn.implicitHeight + 2 * window.panelMargin
-            height: implicitHeight
+            height: Math.max(implicitHeight, mainScroll.height)
             radius: 3
             border.width: 1
             border.color: "#70706a"
@@ -563,6 +722,15 @@ ApplicationWindow {
                             scaleColor: window.scaleGlass
                             textColor: window.ink
                             pointerColor: window.amber
+                            presetFrequenciesKhz:
+                                window.stationPresetFrequencies
+                            presetPointerColor: "#725224"
+                            activePresetPointerColor: window.amber
+
+                            onPresetActivated:
+                                function(index, frequencyKhz) {
+                                    window.recallPreset(index)
+                                }
                         }
 
                     }
@@ -696,9 +864,9 @@ ApplicationWindow {
                             value: window.qualityValue()
                             minimumValue: 0
                             maximumValue: 100
-                            valueText: (xdrClient.cci >= 0 ? xdrClient.cci : "–")
-                                       + " / "
-                                       + (xdrClient.aci >= 0 ? xdrClient.aci : "–")
+                            valueText: xdrClient.signalAvailable
+                                       ? window.qualityValue() + " %"
+                                       : "–"
                         }
 
                         Label {
@@ -872,6 +1040,15 @@ ApplicationWindow {
                         columnSpacing: 18
                         rowSpacing: 10
 
+                        // Der Informationsblock belegt auf breiten
+                        // Displays immer das rechte Drittel.
+                        property real rightThirdWidth:
+                            window.phoneLayout
+                            ? width
+                            : Math.max(
+                                  0,
+                                  (width - 2 * columnSpacing) / 3)
+
                         ColumnLayout {
                             Layout.row: 0
                             Layout.column: 0
@@ -931,8 +1108,19 @@ ApplicationWindow {
                         GridLayout {
                             Layout.row: window.phoneLayout ? 2 : 0
                             Layout.column: window.phoneLayout ? 0 : 2
-                            Layout.fillWidth: true
-                            Layout.preferredWidth: window.phoneLayout ? -1 : 245
+                            Layout.fillWidth: window.phoneLayout
+                            Layout.preferredWidth: window.phoneLayout
+                                                   ? -1
+                                                   : rdsLayout.rightThirdWidth
+                            Layout.minimumWidth: window.phoneLayout
+                                                 ? 0
+                                                 : rdsLayout.rightThirdWidth
+                            Layout.maximumWidth: window.phoneLayout
+                                                 ? Number.POSITIVE_INFINITY
+                                                 : rdsLayout.rightThirdWidth
+                            Layout.alignment: window.phoneLayout
+                                              ? Qt.AlignLeft
+                                              : Qt.AlignRight
                             columns: 2
                             columnSpacing: 10
                             rowSpacing: 7
@@ -1002,4 +1190,125 @@ ApplicationWindow {
             }
         }
     }
+
+    // ---------------------------------------------------------
+    // Rahmenloses Fenster trotzdem verschieben und skalieren
+    // ---------------------------------------------------------
+
+    // Oben anfassen und Fenster verschieben.
+    MouseArea {
+        visible: Qt.platform.os !== "android"
+        x: 10
+        y: 7
+        width: parent.width - 20
+        height: 25
+        z: 10000
+        cursorShape: Qt.SizeAllCursor
+
+        onPressed: function(mouse) {
+            window.startSystemMove()
+        }
+    }
+
+    // Linke Kante
+    MouseArea {
+        visible: Qt.platform.os !== "android"
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        width: 6
+        z: 10001
+        cursorShape: Qt.SizeHorCursor
+        onPressed: window.startSystemResize(Qt.LeftEdge)
+    }
+
+    // Rechte Kante
+    MouseArea {
+        visible: Qt.platform.os !== "android"
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        width: 6
+        z: 10001
+        cursorShape: Qt.SizeHorCursor
+        onPressed: window.startSystemResize(Qt.RightEdge)
+    }
+
+    // Obere Kante
+    MouseArea {
+        visible: Qt.platform.os !== "android"
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        height: 6
+        z: 10001
+        cursorShape: Qt.SizeVerCursor
+        onPressed: window.startSystemResize(Qt.TopEdge)
+    }
+
+    // Untere Kante
+    MouseArea {
+        visible: Qt.platform.os !== "android"
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        height: 6
+        z: 10001
+        cursorShape: Qt.SizeVerCursor
+        onPressed: window.startSystemResize(Qt.BottomEdge)
+    }
+
+    // Linke obere Ecke
+    MouseArea {
+        visible: Qt.platform.os !== "android"
+        anchors.left: parent.left
+        anchors.top: parent.top
+        width: 12
+        height: 12
+        z: 10002
+        cursorShape: Qt.SizeFDiagCursor
+        onPressed:
+            window.startSystemResize(Qt.LeftEdge | Qt.TopEdge)
+    }
+
+    // Rechte obere Ecke
+    MouseArea {
+        visible: Qt.platform.os !== "android"
+        anchors.right: parent.right
+        anchors.top: parent.top
+        width: 12
+        height: 12
+        z: 10002
+        cursorShape: Qt.SizeBDiagCursor
+        onPressed:
+            window.startSystemResize(Qt.RightEdge | Qt.TopEdge)
+    }
+
+    // Linke untere Ecke
+    MouseArea {
+        visible: Qt.platform.os !== "android"
+        anchors.left: parent.left
+        anchors.bottom: parent.bottom
+        width: 12
+        height: 12
+        z: 10002
+        cursorShape: Qt.SizeBDiagCursor
+        onPressed:
+            window.startSystemResize(Qt.LeftEdge | Qt.BottomEdge)
+    }
+
+    // Rechte untere Ecke
+    MouseArea {
+        visible: Qt.platform.os !== "android"
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        width: 12
+        height: 12
+        z: 10002
+        cursorShape: Qt.SizeFDiagCursor
+        onPressed:
+            window.startSystemResize(Qt.RightEdge | Qt.BottomEdge)
+    }
+
+
 }

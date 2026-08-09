@@ -9,11 +9,19 @@ Item {
     property color textColor: "#24241f"
     property color pointerColor: "#b66c27"
 
+    // Nur belegte Speicherplätze (> 0) werden gezeichnet.
+    property var presetFrequenciesKhz: []
+    property color presetPointerColor: "#725224"
+    property color activePresetPointerColor: pointerColor
+
+    signal presetActivated(int index, int frequencyKhz)
+
     implicitHeight: 190
 
     onFrequencyKhzChanged: canvas.requestPaint()
     onMinimumKhzChanged: canvas.requestPaint()
     onMaximumKhzChanged: canvas.requestPaint()
+    onPresetFrequenciesKhzChanged: canvas.requestPaint()
 
     Canvas {
         id: canvas
@@ -86,6 +94,45 @@ Item {
                 ctx.stroke()
             }
 
+            // Kurze Speicherzeiger unterhalb der oberen Hilfsskala.
+            // Leere Speicherplätze (0) bleiben vollständig unsichtbar.
+            for (let i = 0; i < root.presetFrequenciesKhz.length; ++i) {
+                const presetKhz = Number(root.presetFrequenciesKhz[i])
+
+                if (!Number.isFinite(presetKhz)
+                        || presetKhz < root.minimumKhz
+                        || presetKhz > root.maximumKhz) {
+                    continue
+                }
+
+                const normalized =
+                    (presetKhz - root.minimumKhz) / span
+                const presetX = x0 + normalized * (x1 - x0)
+                const active =
+                    Math.abs(presetKhz - root.frequencyKhz) <= 25
+                const markerTop = yTop -20
+                const markerBottom = markerTop + (active ? 18 : 14)
+
+                ctx.strokeStyle = active
+                                  ? root.activePresetPointerColor
+                                  : root.presetPointerColor
+                ctx.fillStyle = ctx.strokeStyle
+                ctx.lineWidth = active ? 3 : 2
+
+                ctx.beginPath()
+                ctx.moveTo(presetX, markerTop)
+                ctx.lineTo(presetX, markerBottom)
+                ctx.stroke()
+
+                // Kleine nach unten zeigende Spitze wie bei älteren Tunern.
+                ctx.beginPath()
+                ctx.moveTo(presetX - 4, markerTop - 5)
+                ctx.lineTo(presetX + 4, markerTop - 5)
+                ctx.lineTo(presetX, markerTop + 1)
+                ctx.closePath()
+                ctx.fill()
+            }
+
             const bounded = Math.max(root.minimumKhz, Math.min(root.maximumKhz, root.frequencyKhz))
             const pointerX = x0 + (bounded - root.minimumKhz) / span * (x1 - x0)
 
@@ -103,6 +150,54 @@ Item {
             ctx.lineTo(pointerX, yTop + 2)
             ctx.closePath()
             ctx.fill()
+        }
+    }
+
+    MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.LeftButton
+
+        onClicked: function(mouse) {
+            const x0 = 38
+            const x1 = width - 38
+            const span = root.maximumKhz - root.minimumKhz
+
+            if (span <= 0 || x1 <= x0)
+                return
+
+            let nearestIndex = -1
+            let nearestDistance = 15
+
+            for (let i = 0;
+                 i < root.presetFrequenciesKhz.length;
+                 ++i) {
+                const presetKhz =
+                    Number(root.presetFrequenciesKhz[i])
+
+                if (!Number.isFinite(presetKhz)
+                        || presetKhz < root.minimumKhz
+                        || presetKhz > root.maximumKhz) {
+                    continue
+                }
+
+                const presetX =
+                    x0
+                    + (presetKhz - root.minimumKhz)
+                    / span * (x1 - x0)
+                const distance = Math.abs(mouse.x - presetX)
+
+                if (distance < nearestDistance) {
+                    nearestDistance = distance
+                    nearestIndex = i
+                }
+            }
+
+            if (nearestIndex >= 0) {
+                root.presetActivated(
+                    nearestIndex,
+                    Number(root.presetFrequenciesKhz[
+                               nearestIndex]))
+            }
         }
     }
 }
