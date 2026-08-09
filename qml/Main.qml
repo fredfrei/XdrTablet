@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtCore
@@ -12,63 +13,64 @@ visible: true
     sequence: "Esc"
     onActivated: window.visibility = Window.Windowed
 }
-    // Echte responsive Größenklassen für Handy, Tablet und Desktop.
-    readonly property bool phoneLayout: width < 650
-    readonly property bool compactLayout: width >= 650 && width < 1180
+    // Zwei Größenklassen: Tablet/kompakt und Desktop/breit.
+    readonly property bool compactLayout: width < 1180
     readonly property bool wideLayout: width >= 1180
     readonly property bool portraitLayout: height > width
 
     readonly property int outerMargin:
-        phoneLayout ? 6 : compactLayout ? 12 : 18
+        compactLayout ? 12 : 18
     readonly property int panelMargin:
-        phoneLayout ? 8 : compactLayout ? 14 : 22
+        compactLayout ? 14 : 22
     readonly property int sectionSpacing:
-        phoneLayout ? 8 : compactLayout ? 11 : 14
+        compactLayout ? 11 : 14
     readonly property int controlSpacing:
-        phoneLayout ? 8 : compactLayout ? 12 : 18
+        compactLayout ? 12 : 18
 
-    readonly property int headerControlHeight:
-        phoneLayout ? 38 : 40
+    readonly property int headerControlHeight: 40
     readonly property int headerControlWidth:
-        phoneLayout
-        ? Math.max(118, Math.min(150,
-                   Math.floor((width - 2 * outerMargin
-                               - 2 * panelMargin - 8) / 2)))
-        : compactLayout ? 138 : 150
+        compactLayout ? 138 : 150
 
     readonly property int scaleHeight:
-        phoneLayout
-        ? Math.max(170, Math.min(220, Math.round(width * 0.52)))
-        : compactLayout ? 190 : 180
+        compactLayout ? 190 : 180
 
     readonly property int meterWidth:
-        wideLayout
-        ? Math.max(185, Math.min(220, Math.round(width * 0.17)))
-        : 0
+        wideLayout ? 200 : 0
+
     readonly property int meterHeight:
-        phoneLayout ? 90 : compactLayout ? 105 : 120
+        compactLayout ? 105 : 120
+
     readonly property int tuningKnobSize:
-        phoneLayout ? 112 : compactLayout ? 125 : 135
+        compactLayout ? 125 : 135
 
     readonly property int smallFontSize:
-        phoneLayout ? 10 : compactLayout ? 11 : 12
+        compactLayout ? 11 : 12
     readonly property int normalFontSize:
-        phoneLayout ? 11 : compactLayout ? 12 : 13
+        compactLayout ? 12 : 13
     readonly property int largeFontSize:
-        phoneLayout ? 20 : compactLayout ? 24 : 27
+        compactLayout ? 24 : 27
 
-    width: 1280
-    height: 620
+    // Desktop: immer die volle nutzbare Bildschirmbreite.
+    // Android behält seine normale Fenstergröße.
+    // Rechner: volle Bildschirmbreite, 620 Pixel Höhe.
+    // Android-Tablet: vollständige Bildschirmgröße.
+    x: Qt.platform.os === "android" ? 0 : Screen.virtualX
+
+    width: Screen.width > 0
+           ? Screen.width
+           : 1920
+
+    height: Qt.platform.os === "android"
+            ? Screen.height
+            : 690
+
     minimumWidth: Qt.platform.os === "android" ? 0 : 360
     minimumHeight: Qt.platform.os === "android" ? 0 : 300
     title: "XDR CT-610"
 
     Component.onCompleted: {
-        Qt.callLater(function() {
-            window.height =
-                Math.ceil(frontPanel.implicitHeight
-                          + 2 * window.outerMargin)
-        })
+        xdrClient.setRdsErrorCorrectionEnabled(
+            appSettings.rdsErrorCorrectionEnabled)
     }
 
     property color aluminiumLight: "#eeeeea"
@@ -217,6 +219,10 @@ visible: true
 
         property alias host: hostField.text
         property alias port: portField.text
+
+        // false = nur TEF-Fehlerstatus 0 verwenden
+        // true  = auch korrigierte RDS-Blöcke 1 und 2 verwenden
+        property bool rdsErrorCorrectionEnabled: false
     }
 
     Shortcut {
@@ -260,7 +266,7 @@ visible: true
     Drawer {
         id: settingsDrawer
         edge: Qt.RightEdge
-        width: window.phoneLayout
+        width: false
                ? window.width
                : Math.min(window.width * 0.44, 520)
         height: window.height
@@ -282,12 +288,12 @@ visible: true
 
                 Label {
                     Layout.fillWidth: true
-                    Layout.leftMargin: window.phoneLayout ? 14 : 20
-                    Layout.rightMargin: window.phoneLayout ? 14 : 20
-                    Layout.topMargin: window.phoneLayout ? 14 : 18
+                    Layout.leftMargin: false ? 14 : 20
+                    Layout.rightMargin: false ? 14 : 20
+                    Layout.topMargin: false ? 14 : 18
                     text: "XDR · EINSTELLUNGEN"
                     color: window.ink
-                    font.pixelSize: window.phoneLayout ? 19 : 22
+                    font.pixelSize: false ? 19 : 22
                     font.bold: true
                 }
 
@@ -303,9 +309,9 @@ visible: true
                     Layout.fillWidth: true
                     Layout.leftMargin: 20
                     Layout.rightMargin: 20
-                    columns: window.phoneLayout ? 1 : 2
+                    columns: false ? 1 : 2
                     columnSpacing: 12
-                    rowSpacing: window.phoneLayout ? 6 : 10
+                    rowSpacing: false ? 6 : 10
 
                     Label { text: "IP-Adresse"; color: window.ink }
                     TextField {
@@ -338,7 +344,7 @@ visible: true
 
                 VintageButton {
                     Layout.alignment: Qt.AlignHCenter
-                    implicitWidth: window.phoneLayout ? 210 : 230
+                    implicitWidth: false ? 210 : 230
                     text: xdrClient.connected ? "VERBINDUNG TRENNEN" : "VERBINDEN"
                     onClicked: window.connectOrDisconnect()
                 }
@@ -351,9 +357,9 @@ visible: true
 
                     GridLayout {
                         anchors.fill: parent
-                        columns: window.phoneLayout ? 1 : 2
+                        columns: false ? 1 : 2
                         columnSpacing: 12
-                        rowSpacing: window.phoneLayout ? 6 : 10
+                        rowSpacing: false ? 6 : 10
 
                         Label { text: "Betriebsart" }
                         Switch {
@@ -430,6 +436,35 @@ visible: true
                                 }
                             }
                         }
+
+                        Label {
+                            text: "RDS-Fehlerkorrektur"
+                        }
+
+                        Switch {
+                            id: rdsErrorCorrectionSwitch
+
+                            text: checked
+                                  ? "Fehlerstatus 0,1,2"
+                                  : "Fehlerstatus nur 0"
+
+                            checked:
+                                xdrClient.rdsErrorCorrectionEnabled
+
+                            onToggled: {
+                                appSettings.rdsErrorCorrectionEnabled =
+                                    checked
+
+                                if (checked !==
+                                    xdrClient.rdsErrorCorrectionEnabled) {
+
+                                    xdrClient
+                                        .setRdsErrorCorrectionEnabled(
+                                            checked)
+                                }
+                            }
+                        }
+
                     }
                 }
 
@@ -441,9 +476,9 @@ visible: true
 
                     GridLayout {
                         anchors.fill: parent
-                        columns: window.phoneLayout ? 1 : 2
+                        columns: false ? 1 : 2
                         columnSpacing: 12
-                        rowSpacing: window.phoneLayout ? 6 : 10
+                        rowSpacing: false ? 6 : 10
 
                         Label { text: "Kleiner Schritt" }
                         ComboBox {
@@ -487,7 +522,7 @@ visible: true
 
                     ColumnLayout {
                         anchors.fill: parent
-                        spacing: window.phoneLayout ? 5 : 7
+                        spacing: false ? 5 : 7
 
                         Repeater {
                             model: 6
@@ -577,7 +612,10 @@ visible: true
 
             width: mainScroll.availableWidth
             implicitHeight: faceColumn.implicitHeight + 2 * window.panelMargin
-            height: Math.max(implicitHeight, mainScroll.height)
+            height: Math.max(
+                implicitHeight,
+                window.height - 2 * window.outerMargin
+            )
             radius: 3
             border.width: 1
             border.color: "#70706a"
@@ -595,18 +633,17 @@ visible: true
                 anchors.margins: window.panelMargin
                 spacing: window.sectionSpacing
 
-                // Auf dem Handy stehen Marke sowie Status-/Einstellungstasten
-                // in zwei Zeilen. Auf großen Displays bleibt alles in einer Zeile.
+                // Auf Tablet und Desktop bleibt die Kopfzeile in einer Zeile.
                 GridLayout {
                     Layout.fillWidth: true
-                    columns: window.phoneLayout ? 2 : 4
-                    columnSpacing: window.phoneLayout ? 8 : 10
+                    columns: false ? 2 : 4
+                    columnSpacing: false ? 8 : 10
                     rowSpacing: 8
 
                     RowLayout {
                         Layout.row: 0
                         Layout.column: 0
-                        Layout.columnSpan: window.phoneLayout ? 2 : 1
+                        Layout.columnSpan: false ? 2 : 1
                         Layout.fillWidth: true
                         spacing: 8
 
@@ -629,13 +666,13 @@ visible: true
                         Label {
                             text: "XDR TABLET"
                             color: window.ink
-                            font.pixelSize: window.phoneLayout ? 15 : 16
+                            font.pixelSize: false ? 15 : 16
                             font.bold: true
                             font.letterSpacing: 1.2
                         }
 
                         Label {
-                            visible: !window.phoneLayout
+                            visible: !false
                             Layout.fillWidth: true
                             text: "NATURAL SOUND FM STEREO TUNER"
                             color: window.mutedInk
@@ -646,7 +683,7 @@ visible: true
                     }
 
                     Item {
-                        visible: !window.phoneLayout
+                        visible: !false
                         Layout.row: 0
                         Layout.column: 1
                         Layout.fillWidth: true
@@ -654,10 +691,10 @@ visible: true
 
                     VintageButton {
                         id: statusButton
-                        Layout.row: window.phoneLayout ? 1 : 0
-                        Layout.column: window.phoneLayout ? 0 : 2
-                        Layout.fillWidth: window.phoneLayout
-                        Layout.minimumWidth: window.phoneLayout ? 118 : window.headerControlWidth
+                        Layout.row: false ? 1 : 0
+                        Layout.column: false ? 0 : 2
+                        Layout.fillWidth: false
+                        Layout.minimumWidth: false ? 118 : window.headerControlWidth
                         Layout.preferredWidth: window.headerControlWidth
                         Layout.minimumHeight: window.headerControlHeight
                         Layout.preferredHeight: window.headerControlHeight
@@ -686,11 +723,11 @@ visible: true
                     }
 
                     VintageButton {
-                        Layout.row: window.phoneLayout ? 1 : 0
-                        Layout.column: window.phoneLayout ? 1 : 3
-                        Layout.fillWidth: window.phoneLayout
-                        Layout.minimumWidth: window.phoneLayout ? 118 : window.headerControlWidth
-                        Layout.preferredWidth: window.phoneLayout ? 150 : window.headerControlWidth
+                        Layout.row: false ? 1 : 0
+                        Layout.column: false ? 1 : 3
+                        Layout.fillWidth: false
+                        Layout.minimumWidth: false ? 118 : window.headerControlWidth
+                        Layout.preferredWidth: false ? 150 : window.headerControlWidth
                         Layout.minimumHeight: window.headerControlHeight
                         Layout.preferredHeight: window.headerControlHeight
                         Layout.maximumHeight: window.headerControlHeight
@@ -705,17 +742,17 @@ visible: true
                     Layout.minimumHeight: 150
                     color: "#22231f"
                     border.color: "#5b5b55"
-                    border.width: window.phoneLayout ? 3 : 5
+                    border.width: false ? 3 : 5
 
                     Rectangle {
                         anchors.fill: parent
-                        anchors.margins: window.phoneLayout ? 7 : 12
+                        anchors.margins: false ? 7 : 12
                         color: window.scaleGlass
                         border.color: "#77776f"
 
                         FrequencyScale {
                             anchors.fill: parent
-                            anchors.margins: window.phoneLayout ? 2 : 5
+                            anchors.margins: false ? 2 : 5
                             frequencyKhz: xdrClient.frequencyKhz
                             minimumKhz: xdrClient.minimumFmFrequencyKhz
                             maximumKhz: xdrClient.maximumFmFrequencyKhz
@@ -738,7 +775,7 @@ visible: true
 
                 // Echte responsive Anordnung:
                 // Desktop: POWER | SIGNAL | QUALITY | TUNING | DREHKNOPF
-                // Handy/Tablet: 2 Spalten, TUNING anschließend über volle Breite.
+                // Tablet: 2 Spalten, TUNING anschließend über volle Breite.
                 GridLayout {
                     id: controlsGrid
                     Layout.fillWidth: true
@@ -764,16 +801,16 @@ visible: true
 
                         Rectangle {
                             Layout.alignment: Qt.AlignHCenter
-                            width: window.phoneLayout ? 58 : 64
-                            height: window.phoneLayout ? 84 : 92
+                            width: false ? 58 : 64
+                            height: false ? 84 : 92
                             color: "#b8b8b1"
                             border.color: "#777770"
 
                             Rectangle {
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 y: window.powerEnabled
-                                   ? (window.phoneLayout ? 11 : 13)
-                                   : (window.phoneLayout ? 42 : 46)
+                                   ? (false ? 11 : 13)
+                                   : (false ? 42 : 46)
                                 width: 24
                                 height: 34
                                 radius: 2
@@ -809,7 +846,7 @@ visible: true
 
                         VintageButton {
                             Layout.alignment: Qt.AlignHCenter
-                            implicitWidth: window.phoneLayout ? 118 : 130
+                            implicitWidth: false ? 118 : 130
                             text: xdrClient.forcedMono ? "MONO" : "AUTO"
                             enabled: xdrClient.ready && !xdrClient.seeking
                             onClicked: xdrClient.setForcedMono(!xdrClient.forcedMono)
@@ -819,8 +856,12 @@ visible: true
                     ColumnLayout {
                         Layout.row: window.wideLayout ? 0 : 1
                         Layout.column: window.wideLayout ? 1 : 0
-                        Layout.fillWidth: true
+                        Layout.fillWidth: !window.wideLayout
+                        Layout.minimumWidth: window.wideLayout ? window.meterWidth : 0
                         Layout.preferredWidth: window.wideLayout ? window.meterWidth : -1
+                        Layout.maximumWidth: window.wideLayout
+                                             ? window.meterWidth
+                                             : Number.POSITIVE_INFINITY
                         Layout.alignment: Qt.AlignTop
                         spacing: 4
 
@@ -851,8 +892,12 @@ visible: true
                     ColumnLayout {
                         Layout.row: window.wideLayout ? 0 : 1
                         Layout.column: window.wideLayout ? 2 : 1
-                        Layout.fillWidth: true
+                        Layout.fillWidth: !window.wideLayout
+                        Layout.minimumWidth: window.wideLayout ? window.meterWidth : 0
                         Layout.preferredWidth: window.wideLayout ? window.meterWidth : -1
+                        Layout.maximumWidth: window.wideLayout
+                                             ? window.meterWidth
+                                             : Number.POSITIVE_INFINITY
                         Layout.alignment: Qt.AlignTop
                         spacing: 4
 
@@ -897,8 +942,13 @@ visible: true
                         }
 
                         GridLayout {
-                            Layout.fillWidth: true
-                            columns: window.phoneLayout ? 2 : 4
+                            Layout.fillWidth: !window.wideLayout
+                            Layout.preferredWidth: window.wideLayout ? 560 : -1
+                            Layout.maximumWidth: window.wideLayout
+                                                 ? 560
+                                                 : Number.POSITIVE_INFINITY
+                            Layout.alignment: Qt.AlignHCenter
+                            columns: 4
                             columnSpacing: 8
                             rowSpacing: 8
 
@@ -933,7 +983,12 @@ visible: true
                         }
 
                         GridLayout {
-                            Layout.fillWidth: true
+                            Layout.fillWidth: !window.wideLayout
+                            Layout.preferredWidth: window.wideLayout ? 560 : -1
+                            Layout.maximumWidth: window.wideLayout
+                                                 ? 560
+                                                 : Number.POSITIVE_INFINITY
+                            Layout.alignment: Qt.AlignHCenter
                             columns: 3
                             columnSpacing: 8
 
@@ -1013,8 +1068,8 @@ visible: true
                             Layout.fillWidth: true
                             Layout.alignment: Qt.AlignHCenter
                             horizontalAlignment: Text.AlignHCenter
-                            text: window.phoneLayout
-                                  ? "ziehen · klicken"
+                            text: Qt.platform.os === "android"
+                                  ? "ziehen · tippen"
                                   : "ziehen · klicken · Mausrad"
                             color: window.mutedInk
                             font.pixelSize: window.smallFontSize
@@ -1026,8 +1081,8 @@ visible: true
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.preferredHeight: rdsLayout.implicitHeight
-                                            + 2 * (window.phoneLayout ? 10 : 14)
-                    Layout.minimumHeight: window.phoneLayout ? 176 : 142
+                                            + 2 * (false ? 10 : 14)
+                    Layout.minimumHeight: false ? 176 : 142
                     color: "#171915"
                     border.color: "#55564f"
                     border.width: 3
@@ -1035,15 +1090,15 @@ visible: true
                     GridLayout {
                         id: rdsLayout
                         anchors.fill: parent
-                        anchors.margins: window.phoneLayout ? 10 : 14
-                        columns: window.phoneLayout ? 1 : 3
+                        anchors.margins: false ? 10 : 14
+                        columns: false ? 1 : 3
                         columnSpacing: 18
                         rowSpacing: 10
 
                         // Der Informationsblock belegt auf breiten
                         // Displays immer das rechte Drittel.
                         property real rightThirdWidth:
-                            window.phoneLayout
+                            false
                             ? width
                             : Math.max(
                                   0,
@@ -1073,52 +1128,121 @@ visible: true
 
                                 Label {
                                     text: xdrClient.rdsActive ? "● RDS" : "○ RDS"
-                                    color: xdrClient.rdsActive
-                                           ? "#d7b45d" : "#65655f"
+                                    color:
+                                        (xdrClient.rtPlusTitle.length > 0
+                                         || xdrClient.rtPlusArtist.length > 0)
+                                        ? "#e53935"
+                                        : (xdrClient.rdsActive
+                                           ? "#d7b45d"
+                                           : "#65655f")
                                     font.pixelSize: window.normalFontSize
                                     font.bold: true
                                 }
                             }
 
-                            Label {
+                            ColumnLayout {
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: window.phoneLayout ? 68 : 72
-                                text: xdrClient.radioText.length > 0
-                                      ? xdrClient.radioText
-                                      : "Radiotext wird empfangen …"
-                                color: xdrClient.radioText.length > 0
-                                       ? "#d2d0bd" : "#67675f"
-                                font.family: "monospace"
-                                font.pixelSize: window.phoneLayout ? 13 : 16
-                                wrapMode: Text.WordWrap
-                                verticalAlignment: Text.AlignVCenter
+                                Layout.preferredHeight:
+                                    false ? 76 : 78
+                                spacing: 1
+
+                                property bool hasRtPlus:
+                                    xdrClient.rtPlusTitle.length > 0
+                                    || xdrClient.rtPlusArtist.length > 0
+
+                                Label {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight:
+                                        parent.hasRtPlus
+                                        ? 20
+                                        : (false ? 68 : 72)
+
+                                    text: xdrClient.radioText.length > 0
+                                          ? xdrClient.radioText
+                                          : "Radiotext wird empfangen …"
+
+                                    color:
+                                        xdrClient.radioText.length > 0
+                                        ? "#d2d0bd"
+                                        : "#67675f"
+
+                                    font.family: "monospace"
+                                    font.pixelSize:
+                                        parent.hasRtPlus
+                                        ? (false ? 11 : 13)
+                                        : (false ? 13 : 16)
+
+                                    wrapMode:
+                                        parent.hasRtPlus
+                                        ? Text.NoWrap
+                                        : Text.WordWrap
+
+                                    elide:
+                                        parent.hasRtPlus
+                                        ? Text.ElideRight
+                                        : Text.ElideNone
+
+                                    verticalAlignment:
+                                        Text.AlignVCenter
+                                }
+
+                                Label {
+                                    Layout.fillWidth: true
+                                    visible:
+                                        xdrClient.rtPlusTitle.length > 0
+
+                                    text:
+                                        "♪ " + xdrClient.rtPlusTitle
+
+                                    color: "#e6dba8"
+                                    font.family: "monospace"
+                                    font.pixelSize:
+                                        false ? 13 : 16
+                                    font.bold: true
+                                    elide: Text.ElideRight
+                                }
+
+                                Label {
+                                    Layout.fillWidth: true
+                                    visible:
+                                        xdrClient.rtPlusArtist.length > 0
+
+                                    text:
+                                        xdrClient.rtPlusArtist
+
+                                    color: "#b9b7a6"
+                                    font.family: "monospace"
+                                    font.pixelSize:
+                                        false ? 12 : 14
+                                    elide: Text.ElideRight
+                                }
                             }
                         }
 
                         Rectangle {
-                            Layout.row: window.phoneLayout ? 1 : 0
-                            Layout.column: window.phoneLayout ? 0 : 1
-                            Layout.fillWidth: window.phoneLayout
-                            Layout.fillHeight: !window.phoneLayout
-                            Layout.preferredWidth: window.phoneLayout ? -1 : 1
-                            Layout.preferredHeight: window.phoneLayout ? 1 : -1
+                            Layout.row: false ? 1 : 0
+                            Layout.column: false ? 0 : 1
+                            Layout.fillWidth: false
+                            Layout.fillHeight: !false
+                            Layout.preferredWidth: false ? -1 : 1
+                            Layout.preferredHeight: false ? 1 : -1
                             color: "#50514a"
                         }
 
                         GridLayout {
-                            Layout.row: window.phoneLayout ? 2 : 0
-                            Layout.column: window.phoneLayout ? 0 : 2
-                            Layout.fillWidth: window.phoneLayout
-                            Layout.preferredWidth: window.phoneLayout
+                            Layout.row: false ? 2 : 0
+                            Layout.column: false ? 0 : 2
+                            Layout.fillWidth: false
+                            Layout.preferredWidth: false
                                                    ? -1
                                                    : rdsLayout.rightThirdWidth
-                            Layout.minimumWidth: window.phoneLayout
+                            Layout.minimumWidth: false
                                                  ? 0
                                                  : rdsLayout.rightThirdWidth
-                            Layout.maximumWidth: window.phoneLayout
+                            Layout.maximumWidth: false
                                                  ? Number.POSITIVE_INFINITY
                                                  : rdsLayout.rightThirdWidth
-                            Layout.alignment: window.phoneLayout
+                            Layout.alignment: false
                                               ? Qt.AlignLeft
                                               : Qt.AlignRight
                             columns: 2
@@ -1153,6 +1277,18 @@ visible: true
                                 text: xdrClient.rdsGroupCount + " Gruppen"
                                 color: "#ded8b5"
                             }
+
+                            Label { text: "CT"; color: "#85857b" }
+                            Label {
+                                Layout.fillWidth: true
+                                text: xdrClient.ctText.length > 0
+                                      ? xdrClient.ctText
+                                      : "–"
+                                color: "#ded8b5"
+                                font.family: "monospace"
+                                font.pixelSize: window.smallFontSize
+                                elide: Text.ElideRight
+                            }
                         }
                     }
                 }
@@ -1160,7 +1296,7 @@ visible: true
                 GridLayout {
                     Layout.fillWidth: true
                     Layout.bottomMargin: 4
-                    columns: window.phoneLayout ? 1 : 2
+                    columns: false ? 1 : 2
                     columnSpacing: 12
                     rowSpacing: 2
 
@@ -1173,8 +1309,8 @@ visible: true
                     }
 
                     Label {
-                        Layout.fillWidth: window.phoneLayout
-                        horizontalAlignment: window.phoneLayout
+                        Layout.fillWidth: false
+                        horizontalAlignment: false
                                              ? Text.AlignLeft
                                              : Text.AlignRight
                         text: "FM 87,5–108 MHz  ·  "

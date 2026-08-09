@@ -1,3 +1,4 @@
+#include <QDate>
 #include "XdrClient.h"
 
 #include <QCryptographicHash>
@@ -112,6 +113,13 @@ QString XdrClient::psText() const { return psText_; }
 QString XdrClient::radioText() const { return radioText_; }
 int XdrClient::ptyCode() const { return ptyCode_; }
 QString XdrClient::ptyText() const { return ptyText_; }
+QString XdrClient::rtPlusTitle() const { return rtPlusTitle_; }
+QString XdrClient::rtPlusArtist() const { return rtPlusArtist_; }
+QString XdrClient::ctText() const { return ctText_; }
+bool XdrClient::rdsErrorCorrectionEnabled() const
+{
+    return rdsErrorCorrectionEnabled_;
+}
 int XdrClient::rdsGroupCount() const { return rdsGroupCount_; }
 QString XdrClient::lastLine() const { return lastLine_; }
 int XdrClient::minimumFmFrequencyKhz() const { return MinimumFmFrequencyKhz; }
@@ -787,11 +795,47 @@ void XdrClient::sendDspCommand()
                  .arg(multipath));
 }
 
+
+void XdrClient::setRdsErrorCorrectionEnabled(bool enabled)
+{
+    if (rdsErrorCorrectionEnabled_ == enabled)
+        return;
+
+    rdsErrorCorrectionEnabled_ = enabled;
+
+    /*
+     * Bereits gesammelte RT-Segmente stammen möglicherweise
+     * noch von der vorherigen Filtereinstellung.
+     * Deshalb Textdaten neu aufbauen.
+     */
+    rtBuffer_.fill(QLatin1Char(' '), 64);
+    rtSegments_.fill(false);
+
+    radioText_.clear();
+    rtPlusTitle_.clear();
+    rtPlusArtist_.clear();
+    ctText_.clear();
+
+    rtPlusGroupCode_ = -1;
+    rtPlusItemToggle_ = -1;
+
+    emit rdsErrorCorrectionChanged();
+    emit rdsChanged();
+
+    qInfo().noquote()
+        << "RDS-Fehlerkorrektur:"
+        << (enabled
+            ? "korrigierte Blöcke erlaubt"
+            : "nur fehlerfreie Blöcke");
+}
+
 void XdrClient::clearRdsData()
 {
     rdsTimeoutTimer_.stop();
     const bool hadData = rdsActive_ || rdsPi_ >= 0 || !psText_.isEmpty() ||
-                         !radioText_.isEmpty() || ptyCode_ >= 0 || rdsGroupCount_ > 0;
+                         !radioText_.isEmpty() || ptyCode_ >= 0 ||
+                         !rtPlusTitle_.isEmpty() || !rtPlusArtist_.isEmpty() ||
+                         !ctText_.isEmpty() || rdsGroupCount_ > 0;
 
     rdsActive_ = false;
     rdsPi_ = -1;
@@ -800,6 +844,13 @@ void XdrClient::clearRdsData()
     radioText_.clear();
     ptyCode_ = -1;
     ptyText_.clear();
+
+    rtPlusTitle_.clear();
+    rtPlusArtist_.clear();
+    ctText_.clear();
+    rtPlusGroupCode_ = -1;
+    rtPlusItemToggle_ = -1;
+
     rdsGroupCount_ = 0;
     psBuffer_.fill(QLatin1Char(' '), 8);
     psSegments_.fill(false);
@@ -897,30 +948,442 @@ void XdrClient::processRdsLine(const QString &line)
 }
 
 void XdrClient::processRdsGroup(quint16 blockA, quint16 blockB,
-                                quint16 blockC, quint16 blockD, quint8 errors)
+                                 quint16 blockC, quint16 blockD, quint8 errors)
 {
+
+    /*
+     * AUS: nur Status 0
+     * EIN: Status 0, 1 und 2
+     * Status 3 ist immer unbrauchbar.
+     */
+    const auto rdsTextBlockUsable =
+        [&](int blockIndex) -> bool {
+            const int error =
+                rdsBlockError(errors, blockIndex);
+
+            if (rdsErrorCorrectionEnabled_)
+                return error < 3;
+
+            return error == 0;
+        };
+
+
+    /*
+     * PI darf weiterhin die vom TEF korrigierten Werte verwenden.
+     */
     if (rdsBlockError(errors, 0) < 3) {
-        const int newPi = static_cast<int>(blockA);
+        const int newPi =
+            static_cast<int>(blockA);
+
+        if (rdsPi_ >= 0 &&
+            newPi != rdsPi_) {
+
+            rtPlusTitle_.clear();
+            rtPlusArtist_.clear();
+            ctText_.clear();
+
+            rtPlusGroupCode_ = -1;
+            rtPlusItemToggle_ = -1;
+        }
+
         if (newPi != rdsPi_) {
             rdsPi_ = newPi;
-            piCode_ = QStringLiteral("%1").arg(newPi, 4, 16, QLatin1Char('0')).toUpper();
+
+            piCode_ =
+                QStringLiteral("%1")
+                    .arg(newPi,
+                         4, 16,
+                         QLatin1Char('0'))
+                    .toUpper();
         }
     }
 
+    /*
+     * Ohne brauchbaren Block B kann die Gruppe generell
+     * nicht ausgewertet werden.
+     */
     if (rdsBlockError(errors, 1) >= 3)
         return;
 
-    const int groupType = (blockB >> 12) & 0x0F;
-    const bool versionB = ((blockB >> 11) & 0x01) != 0;
-    updatePty((blockB >> 5) & 0x1F);
+    const int groupType =
+        (blockB >> 12) & 0x0F;
 
-    if (groupType == 0 && rdsBlockError(errors, 3) < 3) {
-        updatePsSegment(blockB & 0x03, blockD);
-    } else if (groupType == 2 && rdsBlockError(errors, 3) < 3) {
-        if (!versionB && rdsBlockError(errors, 2) >= 3)
+    const bool versionB =
+        ((blockB >> 11) & 0x01) != 0;
+
+    /*
+     * PTY bleibt vorerst unverändert:
+     * korrigierte B-Blöcke dürfen weiterhin verwendet werden.
+     */
+    updatePty(
+        (blockB >> 5) & 0x1F);
+
+    /*
+     * ============================================================
+     * PS
+     * ============================================================
+     *
+     * Bleibt ebenfalls unverändert.
+     */
+    if (groupType == 0 &&
+        rdsBlockError(errors, 3) < 3) {
+
+        updatePsSegment(
+            blockB & 0x03,
+            blockD);
+    }
+
+    /*
+     * ============================================================
+     * RadioText 2A / 2B
+     * ============================================================
+     *
+     * TEST:
+     *
+     * Nur Fehlerstatus 0 verwenden.
+     */
+    else if (groupType == 2) {
+
+        /*
+         * Block B enthält unter anderem:
+         * - Gruppe
+         * - A/B-Flag
+         * - Segmentnummer
+         *
+         * Deshalb muss auch B fehlerfrei sein.
+         */
+        if (!rdsTextBlockUsable(1))
             return;
-        const bool abFlag = ((blockB >> 4) & 0x01) != 0;
-        updateRadioTextSegment(versionB, blockB & 0x0F, abFlag, blockC, blockD);
+
+        /*
+         * Block D enthält bei 2A und 2B Text.
+         */
+        if (!rdsTextBlockUsable(3))
+            return;
+
+        /*
+         * 2A verwendet zusätzlich Block C.
+         */
+        if (!versionB &&
+            !rdsTextBlockUsable(2))
+            return;
+
+        const bool abFlag =
+            ((blockB >> 4) & 0x01) != 0;
+
+        updateRadioTextSegment(
+            versionB,
+            blockB & 0x0F,
+            abFlag,
+            blockC,
+            blockD);
+    }
+
+    /*
+     * ============================================================
+     * RT+ ODA-Ankündigung
+     * ============================================================
+     *
+     * Auch hier nur fehlerfreies B und D.
+     */
+    if (groupType == 3 &&
+        !versionB &&
+        rdsTextBlockUsable(1) &&
+        rdsTextBlockUsable(3) &&
+        blockD == 0x4BD7) {
+
+        const int groupCode =
+            blockB & 0x1F;
+
+        if (groupCode !=
+            rtPlusGroupCode_) {
+
+            rtPlusGroupCode_ =
+                groupCode;
+
+            const int number =
+                groupCode >> 1;
+
+            const QChar version =
+                (groupCode & 1)
+                    ? QLatin1Char('B')
+                    : QLatin1Char('A');
+
+            qInfo().noquote()
+                << QStringLiteral(
+                       "RT+ ODA erkannt: AID 4BD7 -> Gruppe %1%2")
+                       .arg(number)
+                       .arg(version);
+        }
+    }
+
+    const int receivedGroupCode =
+        (groupType << 1) |
+        (versionB ? 1 : 0);
+
+    /*
+     * ============================================================
+     * RT+ Daten
+     * ============================================================
+     *
+     * B, C und D müssen Fehlerstatus 0 besitzen.
+     */
+    if (rtPlusGroupCode_ >= 0 &&
+        rtTextComplete_ &&
+        receivedGroupCode ==
+            rtPlusGroupCode_ &&
+        rdsTextBlockUsable(1) &&
+        rdsTextBlockUsable(2) &&
+        rdsTextBlockUsable(3)) {
+
+        const int itemToggle =
+            (blockB >> 4) & 0x01;
+
+        const bool itemRunning =
+            ((blockB >> 3) & 0x01) != 0;
+
+        const int contentType1 =
+            ((blockB & 0x0007) << 3) |
+            ((blockC >> 13) & 0x0007);
+
+        const int start1 =
+            (blockC >> 7) & 0x003F;
+
+        const int length1 =
+            (blockC >> 1) & 0x003F;
+
+        const int contentType2 =
+            ((blockC & 0x0001) << 5) |
+            ((blockD >> 11) & 0x001F);
+
+        const int start2 =
+            (blockD >> 5) & 0x003F;
+
+        const int length2 =
+            blockD & 0x001F;
+
+        /*
+         * Beim Titelwechsel den alten RT+-Text stehen lassen.
+         * Er wird erst ersetzt, wenn die neuen RT+-Daten
+         * erfolgreich aus dem vollständigen RT gelesen wurden.
+         */
+        rtPlusItemToggle_ =
+            itemToggle;
+
+        auto extractText =
+            [&](int startPosition,
+                int encodedLength)
+                -> QString {
+
+                const int count =
+                    encodedLength + 1;
+
+                /*
+                 * radioText_ wird erst nach einem kompletten
+                 * fehlerfreien Durchlauf gesetzt.
+                 */
+                if (startPosition < 0 ||
+                    count <= 0 ||
+                    startPosition + count >
+                        radioText_.size())
+                    return QString();
+
+                return radioText_
+                    .mid(startPosition,
+                         count)
+                    .trimmed();
+            };
+
+        QString newTitle =
+            rtPlusTitle_;
+
+        QString newArtist =
+            rtPlusArtist_;
+
+        auto decodeTag =
+            [&](int contentType,
+                int startPosition,
+                int encodedLength) {
+
+                const QString value =
+                    extractText(
+                        startPosition,
+                        encodedLength);
+
+                if (value.isEmpty())
+                    return;
+
+                if (contentType == 1)
+                    newTitle = value;
+
+                else if (contentType == 4)
+                    newArtist = value;
+            };
+
+        if (itemRunning) {
+
+            decodeTag(
+                contentType1,
+                start1,
+                length1);
+
+            decodeTag(
+                contentType2,
+                start2,
+                length2);
+        }
+
+        /*
+         * KEINE Zweifachbestätigung mehr.
+         */
+        if (newTitle !=
+                rtPlusTitle_ ||
+            newArtist !=
+                rtPlusArtist_) {
+
+            rtPlusTitle_ =
+                newTitle;
+
+            rtPlusArtist_ =
+                newArtist;
+
+            qInfo().noquote()
+                << "RT+: Titel ="
+                << rtPlusTitle_
+                << "| Interpret ="
+                << rtPlusArtist_
+                << "| Toggle ="
+                << itemToggle;
+        }
+    }
+
+    /*
+     * ============================================================
+     * CT / Clock Time
+     * ============================================================
+     *
+     * B, C und D nur mit Fehlerstatus 0.
+     */
+    if (groupType == 4 &&
+        !versionB &&
+        rdsTextBlockUsable(1) &&
+        rdsTextBlockUsable(2) &&
+        rdsTextBlockUsable(3)) {
+
+        const int mjd =
+            ((blockB & 0x0003) << 15) |
+            ((blockC >> 1) & 0x7FFF);
+
+        const int utcHour =
+            ((blockC & 0x0001) << 4) |
+            ((blockD >> 12) &
+             0x000F);
+
+        const int utcMinute =
+            (blockD >> 6) &
+            0x003F;
+
+        int offsetHalfHours =
+            blockD & 0x001F;
+
+        if (blockD & 0x0020)
+            offsetHalfHours =
+                -offsetHalfHours;
+
+        if (utcHour < 24 &&
+            utcMinute < 60) {
+
+            QDate date =
+                QDate::fromJulianDay(
+                    static_cast<qint64>(
+                        mjd) +
+                    2400001LL);
+
+            /*
+             * Die zusätzliche Plausibilitätskontrolle
+             * behalten wir trotzdem bei.
+             */
+            if (date.isValid() &&
+                qAbs(
+                    date.daysTo(
+                        QDate::currentDate()))
+                    <= 2 &&
+                qAbs(offsetHalfHours)
+                    <= 28) {
+
+                const int offsetMinutes =
+                    offsetHalfHours * 30;
+
+                int localMinutes =
+                    utcHour * 60 +
+                    utcMinute +
+                    offsetMinutes;
+
+                while (localMinutes < 0) {
+                    localMinutes += 1440;
+                    date =
+                        date.addDays(-1);
+                }
+
+                while (localMinutes >=
+                       1440) {
+
+                    localMinutes -= 1440;
+                    date =
+                        date.addDays(1);
+                }
+
+                const int localHour =
+                    localMinutes / 60;
+
+                const int localMinute =
+                    localMinutes % 60;
+
+                const int absOffset =
+                    qAbs(offsetMinutes);
+
+                const QString offsetText =
+                    QStringLiteral(
+                        "UTC%1%2:%3")
+                        .arg(
+                            offsetMinutes < 0
+                            ? QStringLiteral("-")
+                            : QStringLiteral("+"))
+                        .arg(
+                            absOffset / 60,
+                            2, 10,
+                            QLatin1Char('0'))
+                        .arg(
+                            absOffset % 60,
+                            2, 10,
+                            QLatin1Char('0'));
+
+                const QString newCt =
+                    QStringLiteral(
+                        "%1 %2:%3 (%4)")
+                        .arg(
+                            date.toString(
+                                QStringLiteral(
+                                    "dd.MM.yyyy")))
+                        .arg(
+                            localHour,
+                            2, 10,
+                            QLatin1Char('0'))
+                        .arg(
+                            localMinute,
+                            2, 10,
+                            QLatin1Char('0'))
+                        .arg(offsetText);
+
+                if (newCt != ctText_) {
+                    ctText_ = newCt;
+
+                    qInfo().noquote()
+                        << "RDS CT:"
+                        << ctText_;
+                }
+            }
+        }
     }
 }
 
@@ -952,15 +1415,28 @@ void XdrClient::updatePsSegment(int segment, quint16 blockD)
 }
 
 void XdrClient::updateRadioTextSegment(bool versionB, int segment, bool abFlag,
-                                       quint16 blockC, quint16 blockD)
+                                        quint16 blockC, quint16 blockD)
 {
     if (segment < 0 || segment > 15)
         return;
 
-    if (!rtAbFlagKnown_ || rtAbFlag_ != abFlag || rtVersionB_ != versionB) {
+    /*
+     * Neuer RadioText:
+     * A/B-Flag oder 2A/2B hat gewechselt.
+     */
+    if (!rtAbFlagKnown_ ||
+        rtAbFlag_ != abFlag ||
+        rtVersionB_ != versionB) {
+
         rtBuffer_.fill(QLatin1Char(' '), 64);
         rtSegments_.fill(false);
-        radioText_.clear();
+
+        /*
+         * Den alten sichtbaren RT/RT+ stehen lassen,
+         * bis ein vollständiger neuer RadioText vorliegt.
+         */
+        rtTextComplete_ = false;
+
         rtAbFlagKnown_ = true;
         rtAbFlag_ = abFlag;
         rtVersionB_ = versionB;
@@ -968,24 +1444,103 @@ void XdrClient::updateRadioTextSegment(bool versionB, int segment, bool abFlag,
 
     if (versionB) {
         const int offset = segment * 2;
-        rtBuffer_[offset] = decodeRdsCharacter(static_cast<quint8>(blockD >> 8));
-        rtBuffer_[offset + 1] = decodeRdsCharacter(static_cast<quint8>(blockD & 0xFF));
+
+        rtBuffer_[offset] =
+            decodeRdsCharacter(
+                static_cast<quint8>(blockD >> 8));
+
+        rtBuffer_[offset + 1] =
+            decodeRdsCharacter(
+                static_cast<quint8>(blockD & 0xFF));
+
     } else {
         const int offset = segment * 4;
-        rtBuffer_[offset] = decodeRdsCharacter(static_cast<quint8>(blockC >> 8));
-        rtBuffer_[offset + 1] = decodeRdsCharacter(static_cast<quint8>(blockC & 0xFF));
-        rtBuffer_[offset + 2] = decodeRdsCharacter(static_cast<quint8>(blockD >> 8));
-        rtBuffer_[offset + 3] = decodeRdsCharacter(static_cast<quint8>(blockD & 0xFF));
+
+        rtBuffer_[offset] =
+            decodeRdsCharacter(
+                static_cast<quint8>(blockC >> 8));
+
+        rtBuffer_[offset + 1] =
+            decodeRdsCharacter(
+                static_cast<quint8>(blockC & 0xFF));
+
+        rtBuffer_[offset + 2] =
+            decodeRdsCharacter(
+                static_cast<quint8>(blockD >> 8));
+
+        rtBuffer_[offset + 3] =
+            decodeRdsCharacter(
+                static_cast<quint8>(blockD & 0xFF));
     }
+
     rtSegments_[static_cast<std::size_t>(segment)] = true;
 
-    QString display = rtBuffer_;
-    const int terminator = display.indexOf(QChar(0x000D));
+    /*
+     * Nur EIN vollständiger Durchlauf wird verlangt.
+     *
+     * 2A = 4 Zeichen je Segment
+     * 2B = 2 Zeichen je Segment
+     */
+    const int charsPerSegment =
+        versionB ? 2 : 4;
+
+    const int maximumCharacters =
+        versionB ? 32 : 64;
+
+    QString candidate =
+        rtBuffer_.left(maximumCharacters);
+
+    const int terminator =
+        candidate.indexOf(QChar(0x000D));
+
+    int lastRequiredSegment = 15;
+
     if (terminator >= 0)
-        display.truncate(terminator);
-    while (display.endsWith(QLatin1Char(' ')))
-        display.chop(1);
-    radioText_ = display;
+        lastRequiredSegment =
+            terminator / charsPerSegment;
+
+    /*
+     * Alle Segmente dieses Textes müssen einmal mit
+     * Fehlerstatus 0 angekommen sein.
+     */
+    for (int s = 0;
+         s <= lastRequiredSegment;
+         ++s) {
+
+        if (!rtSegments_[
+                static_cast<std::size_t>(s)])
+            return;
+    }
+
+    if (terminator >= 0)
+        candidate.truncate(terminator);
+
+    while (candidate.endsWith(QLatin1Char(' ')))
+        candidate.chop(1);
+
+    /*
+     * Der nächste angezeigte Text muss wieder aus einem
+     * vollständigen Durchlauf bestehen.
+     *
+     * Es wird aber NICHT mehr verlangt, dass derselbe Text
+     * zweimal empfangen wird.
+     */
+    rtSegments_.fill(false);
+
+    if (candidate.isEmpty())
+        return;
+
+    /*
+     * Ab jetzt darf RT+ wieder auf diesen RadioText zugreifen.
+     */
+    rtTextComplete_ = true;
+
+    if (candidate != radioText_) {
+        radioText_ = candidate;
+
+        qInfo().noquote()
+            << "RDS RT:" << radioText_;
+    }
 }
 
 QString XdrClient::ptyName(int code)
@@ -1013,11 +1568,67 @@ QString XdrClient::ptyName(int code)
 
 QChar XdrClient::decodeRdsCharacter(quint8 value)
 {
+    /*
+     * RDS verwendet nicht ISO-8859-1/Latin-1, sondern
+     * den eigenen RDS-G0-Zeichensatz.
+     */
+
+    // 0x0D beendet RadioText.
     if (value == 0x0D)
         return QChar(0x000D);
+
+    // Andere Steuerzeichen nicht anzeigen.
     if (value < 0x20)
         return QLatin1Char(' ');
-    return QChar::fromLatin1(static_cast<char>(value));
+
+    /*
+     * Auch im ASCII-Bereich unterscheiden sich einige
+     * Zeichen vom normalen ASCII/Latin-1.
+     */
+    if (value < 0x80) {
+        switch (value) {
+        case 0x24: return QChar(0x00A4); // ¤
+        case 0x5E: return QChar(0x2015); // ―
+        case 0x60: return QChar(0x2551); // ║
+        case 0x7E: return QChar(0x00AF); // ¯
+        case 0x7F: return QChar(0x0132); // Ĳ
+        default:
+            return QChar(value);
+        }
+    }
+
+    /*
+     * RDS G0, Codes 0x80 ... 0xFF.
+     * Ein Eintrag 0x0000 wird als Leerzeichen behandelt.
+     */
+    static const ushort table[128] = {
+        0x00E1,0x00E0,0x00E9,0x00E8,0x00ED,0x00EC,0x00F3,0x00F2,
+        0x00FA,0x00F9,0x00D1,0x00C7,0x015E,0x00DF,0x00A1,0x0133,
+        0x00E2,0x00E4,0x00EA,0x00EB,0x00EE,0x00EF,0x00F4,0x00F6,
+        0x00FB,0x00FC,0x00F1,0x00E7,0x015F,0x011F,0x0131,0x2193,
+
+        0x00AA,0x03B1,0x00A9,0x2030,0x011E,0x011B,0x0148,0x0151,
+        0x03C0,0x20AC,0x00A3,0x0024,0x2190,0x2191,0x2192,0x00A7,
+        0x00BA,0x00B9,0x00B2,0x00B3,0x00B1,0x0130,0x0144,0x0171,
+        0x00B5,0x00BF,0x00F7,0x00B0,0x00BC,0x00BD,0x00BE,0x013F,
+
+        0x00C1,0x00C0,0x00C9,0x00C8,0x00CD,0x00CC,0x00D3,0x00D2,
+        0x00DA,0x00D9,0x0158,0x010C,0x0160,0x017D,0x0110,0x0140,
+        0x00C2,0x00C4,0x00CA,0x00CB,0x00CE,0x00CF,0x00D4,0x00D6,
+        0x00DB,0x00DC,0x0159,0x010D,0x0161,0x017E,0x0111,0x00F0,
+
+        0x00C3,0x00C5,0x00C6,0x0152,0x0177,0x00DD,0x00D5,0x00D8,
+        0x00DE,0x014A,0x0154,0x0106,0x015A,0x0179,0x0166,0x0000,
+        0x00E3,0x00E5,0x00E6,0x0153,0x0175,0x00FD,0x00F5,0x00F8,
+        0x00FE,0x014B,0x0155,0x0107,0x015B,0x017A,0x0167,0x0000
+    };
+
+    const ushort unicode = table[value - 0x80];
+
+    if (unicode == 0x0000)
+        return QLatin1Char(' ');
+
+    return QChar(unicode);
 }
 
 int XdrClient::rdsBlockError(quint8 errors, int blockIndex)

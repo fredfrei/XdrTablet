@@ -9,7 +9,7 @@ Item {
     property string valueText: ""
     property color needleColor: "#22221f"
 
-    implicitWidth: 210
+    implicitWidth: 128
     implicitHeight: 128
 
     onValueChanged: canvas.requestPaint()

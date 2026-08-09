@@ -36,6 +36,12 @@ class XdrClient : public QObject
     Q_PROPERTY(QString radioText READ radioText NOTIFY rdsChanged)
     Q_PROPERTY(int ptyCode READ ptyCode NOTIFY rdsChanged)
     Q_PROPERTY(QString ptyText READ ptyText NOTIFY rdsChanged)
+    Q_PROPERTY(QString rtPlusTitle READ rtPlusTitle NOTIFY rdsChanged)
+    Q_PROPERTY(QString rtPlusArtist READ rtPlusArtist NOTIFY rdsChanged)
+    Q_PROPERTY(QString ctText READ ctText NOTIFY rdsChanged)
+    Q_PROPERTY(bool rdsErrorCorrectionEnabled
+               READ rdsErrorCorrectionEnabled
+               NOTIFY rdsErrorCorrectionChanged)
     Q_PROPERTY(int rdsGroupCount READ rdsGroupCount NOTIFY rdsChanged)
 
     Q_PROPERTY(QString lastLine READ lastLine NOTIFY lastLineChanged)
@@ -76,6 +82,10 @@ public:
     QString radioText() const;
     int ptyCode() const;
     QString ptyText() const;
+    QString rtPlusTitle() const;
+    QString rtPlusArtist() const;
+    QString ctText() const;
+    bool rdsErrorCorrectionEnabled() const;
     int rdsGroupCount() const;
 
     QString lastLine() const;
@@ -107,6 +117,7 @@ public:
     Q_INVOKABLE void setAgc(int mode);
     Q_INVOKABLE void setChannelEqualizer(bool enabled);
     Q_INVOKABLE void setMultipathSuppression(bool enabled);
+    Q_INVOKABLE void setRdsErrorCorrectionEnabled(bool enabled);
 
 signals:
     void connectedChanged();
@@ -119,6 +130,7 @@ signals:
     void bandwidthChanged();
     void receiverSettingsChanged();
     void rdsChanged();
+    void rdsErrorCorrectionChanged();
     void lastLineChanged();
     void tuningSettingsChanged();
     void seekingChanged();
@@ -200,6 +212,16 @@ private:
     QString radioText_;
     int ptyCode_ = -1;
     QString ptyText_;
+
+    QString rtPlusTitle_;
+    QString rtPlusArtist_;
+    QString ctText_;
+    int rtPlusGroupCode_ = -1;
+    int rtPlusItemToggle_ = -1;
+
+    bool rdsErrorCorrectionEnabled_ = false;
+
+
     int rdsGroupCount_ = 0;
     QString psBuffer_ = QString(8, QLatin1Char(' '));
     std::array<bool, 4> psSegments_{{false, false, false, false}};
@@ -208,6 +230,8 @@ private:
     bool rtAbFlagKnown_ = false;
     bool rtAbFlag_ = false;
     bool rtVersionB_ = false;
+    bool rtTextComplete_ = false;
+
 
     int smallStepKhz_ = 100;
     int largeStepKhz_ = 1000;
