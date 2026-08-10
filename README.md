@@ -9,7 +9,8 @@ Plattformübergreifender TCP-Client für einen XDR-kompatiblen FM-Tuner.
 
 ## Oberfläche
 
-![XdrTablet im CT-610-Design](screenshots/XdrTablet-CT610.png)
+![XdrTablet](screenshots/Xdrtablet.png)
+
 ## Enthalten
 
 - xdrd-Anmeldung mit SHA-1 aus Salt und Passwort
