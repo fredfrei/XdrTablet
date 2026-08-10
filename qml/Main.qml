@@ -1126,17 +1126,47 @@ visible: true
                                     elide: Text.ElideRight
                                 }
 
-                                Label {
-                                    text: xdrClient.rdsActive ? "● RDS" : "○ RDS"
-                                    color:
-                                        (xdrClient.rtPlusTitle.length > 0
-                                         || xdrClient.rtPlusArtist.length > 0)
-                                        ? "#e53935"
-                                        : (xdrClient.rdsActive
-                                           ? "#d7b45d"
-                                           : "#65655f")
-                                    font.pixelSize: window.normalFontSize
-                                    font.bold: true
+                                RowLayout {
+                                    spacing: 8
+
+                                    Label {
+                                        visible:
+                                            xdrClient.rtPlusItemRunningKnown
+
+                                        text:
+                                            xdrClient.rtPlusItemRunning
+                                            ? "▶ START"
+                                            : "■ STOP"
+
+                                        color:
+                                            xdrClient.rtPlusItemRunning
+                                            ? "#e6dba8"
+                                            : "#85857b"
+
+                                        font.family: "monospace"
+                                        font.pixelSize:
+                                            window.smallFontSize
+                                        font.bold: true
+                                    }
+
+                                    Label {
+                                        text:
+                                            xdrClient.rdsActive
+                                            ? "● RDS"
+                                            : "○ RDS"
+
+                                        color:
+                                            (xdrClient.rtPlusItemRunningKnown
+                                             && xdrClient.rtPlusItemRunning)
+                                            ? "#e53935"
+                                            : (xdrClient.rdsActive
+                                               ? "#d7b45d"
+                                               : "#65655f")
+
+                                        font.pixelSize:
+                                            window.normalFontSize
+                                        font.bold: true
+                                    }
                                 }
                             }
 

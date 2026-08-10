@@ -38,6 +38,8 @@ class XdrClient : public QObject
     Q_PROPERTY(QString ptyText READ ptyText NOTIFY rdsChanged)
     Q_PROPERTY(QString rtPlusTitle READ rtPlusTitle NOTIFY rdsChanged)
     Q_PROPERTY(QString rtPlusArtist READ rtPlusArtist NOTIFY rdsChanged)
+    Q_PROPERTY(bool rtPlusItemRunning READ rtPlusItemRunning NOTIFY rdsChanged)
+    Q_PROPERTY(bool rtPlusItemRunningKnown READ rtPlusItemRunningKnown NOTIFY rdsChanged)
     Q_PROPERTY(QString ctText READ ctText NOTIFY rdsChanged)
     Q_PROPERTY(bool rdsErrorCorrectionEnabled
                READ rdsErrorCorrectionEnabled
@@ -84,6 +86,8 @@ public:
     QString ptyText() const;
     QString rtPlusTitle() const;
     QString rtPlusArtist() const;
+    bool rtPlusItemRunning() const;
+    bool rtPlusItemRunningKnown() const;
     QString ctText() const;
     bool rdsErrorCorrectionEnabled() const;
     int rdsGroupCount() const;
@@ -218,6 +222,8 @@ private:
     QString ctText_;
     int rtPlusGroupCode_ = -1;
     int rtPlusItemToggle_ = -1;
+    bool rtPlusItemRunning_ = false;
+    bool rtPlusItemRunningKnown_ = false;
 
     bool rdsErrorCorrectionEnabled_ = false;
 

@@ -115,6 +115,8 @@ int XdrClient::ptyCode() const { return ptyCode_; }
 QString XdrClient::ptyText() const { return ptyText_; }
 QString XdrClient::rtPlusTitle() const { return rtPlusTitle_; }
 QString XdrClient::rtPlusArtist() const { return rtPlusArtist_; }
+bool XdrClient::rtPlusItemRunning() const { return rtPlusItemRunning_; }
+bool XdrClient::rtPlusItemRunningKnown() const { return rtPlusItemRunningKnown_; }
 QString XdrClient::ctText() const { return ctText_; }
 bool XdrClient::rdsErrorCorrectionEnabled() const
 {
@@ -818,6 +820,8 @@ void XdrClient::setRdsErrorCorrectionEnabled(bool enabled)
 
     rtPlusGroupCode_ = -1;
     rtPlusItemToggle_ = -1;
+    rtPlusItemRunning_ = false;
+    rtPlusItemRunningKnown_ = false;
 
     emit rdsErrorCorrectionChanged();
     emit rdsChanged();
@@ -850,6 +854,8 @@ void XdrClient::clearRdsData()
     ctText_.clear();
     rtPlusGroupCode_ = -1;
     rtPlusItemToggle_ = -1;
+    rtPlusItemRunning_ = false;
+    rtPlusItemRunningKnown_ = false;
 
     rdsGroupCount_ = 0;
     psBuffer_.fill(QLatin1Char(' '), 8);
@@ -984,6 +990,10 @@ void XdrClient::processRdsGroup(quint16 blockA, quint16 blockB,
 
             rtPlusGroupCode_ = -1;
             rtPlusItemToggle_ = -1;
+    rtPlusItemRunning_ = false;
+    rtPlusItemRunningKnown_ = false;
+            rtPlusItemRunning_ = false;
+            rtPlusItemRunningKnown_ = false;
         }
 
         if (newPi != rdsPi_) {
@@ -1122,19 +1132,140 @@ void XdrClient::processRdsGroup(quint16 blockA, quint16 blockB,
         (versionB ? 1 : 0);
 
     /*
+     * RT+ Item-Status.
+     *
+     * Item Running muss unabhängig davon ausgewertet werden,
+     * ob der zugehörige RadioText bereits vollständig ist.
+     *
+     * Running = 1 : Programmelement läuft
+     * Running = 0 : kein laufendes Programmelement /
+     *               Unterbrechung
+     */
+    const bool receivedRtPlusDataGroup =
+        rtPlusGroupCode_ >= 0 &&
+        receivedGroupCode == rtPlusGroupCode_ &&
+        rdsTextBlockUsable(1) &&
+        rdsTextBlockUsable(2) &&
+        rdsTextBlockUsable(3);
+
+    if (receivedRtPlusDataGroup) {
+
+        const int statusItemToggle =
+            (blockB >> 4) & 0x01;
+
+        const bool statusItemRunning =
+            ((blockB >> 3) & 0x01) != 0;
+
+        static int lastRtPlusToggle = -1;
+        static int lastRtPlusRunning = -1;
+
+        const bool statusChanged =
+            statusItemToggle != lastRtPlusToggle ||
+            static_cast<int>(statusItemRunning) !=
+                lastRtPlusRunning;
+
+        /*
+         * RT+ Toggle sofort synchronisieren.
+         *
+         * Bisher wurde der Togglewechsel erst in der
+         * RT+-Textauswertung behandelt. Zu diesem Zeitpunkt
+         * konnte der neue RadioText bereits vollständig
+         * empfangen worden sein und wurde dann unnötig
+         * wieder verworfen.
+         *
+         * Jetzt beginnt die RT-Sammlung bereits beim
+         * Empfang des neuen Toggle-Zustands neu.
+         */
+        if (rtPlusItemToggle_ < 0 ||
+            statusItemToggle != rtPlusItemToggle_) {
+
+            const bool firstItem =
+                rtPlusItemToggle_ < 0;
+
+            rtPlusItemToggle_ =
+                statusItemToggle;
+
+            /*
+             * Alter Titel gehört nicht mehr zum neuen Item.
+             */
+            rtPlusTitle_.clear();
+            rtPlusArtist_.clear();
+
+            rtTextComplete_ = false;
+            rtBuffer_.fill(QLatin1Char(' '), 64);
+            rtSegments_.fill(false);
+
+            qInfo().noquote()
+                << "RT+ SYNC EARLY:"
+                << (firstItem
+                        ? "erster Toggle"
+                        : "Togglewechsel auf")
+                << statusItemToggle;
+        }
+
+        rtPlusItemRunningKnown_ = true;
+
+        const bool wasRunning =
+            rtPlusItemRunning_;
+
+        rtPlusItemRunning_ =
+            statusItemRunning;
+
+        /*
+         * RT+ Item Running = 0:
+         *
+         * Es läuft momentan kein RT+-Programmelement.
+         * Titel und Interpret deshalb aus der Anzeige entfernen.
+         *
+         * Gleichzeitig die interne RT-Sammlung neu beginnen,
+         * damit beim nächsten START keine RT+-Positionen auf
+         * RadioText einer Unterbrechung angewendet werden.
+         */
+        if (!statusItemRunning &&
+            (wasRunning ||
+             !rtPlusTitle_.isEmpty() ||
+             !rtPlusArtist_.isEmpty())) {
+
+            rtPlusTitle_.clear();
+            rtPlusArtist_.clear();
+
+            rtTextComplete_ = false;
+            rtBuffer_.fill(QLatin1Char(' '), 64);
+            rtSegments_.fill(false);
+
+            qInfo().noquote()
+                << "RT+: STOP - Titelanzeige gelöscht";
+        }
+
+        if (statusChanged) {
+
+            qInfo().noquote()
+                << "RT+ STATUS:"
+                << "Toggle =" << statusItemToggle
+                << "| Running ="
+                << (statusItemRunning ? 1 : 0)
+                << "|"
+                << (statusItemRunning
+                        ? "START"
+                        : "STOP");
+
+            lastRtPlusToggle =
+                statusItemToggle;
+
+            lastRtPlusRunning =
+                statusItemRunning ? 1 : 0;
+        }
+    }
+
+    /*
      * ============================================================
      * RT+ Daten
      * ============================================================
      *
      * B, C und D müssen Fehlerstatus 0 besitzen.
      */
-    if (rtPlusGroupCode_ >= 0 &&
-        rtTextComplete_ &&
-        receivedGroupCode ==
-            rtPlusGroupCode_ &&
-        rdsTextBlockUsable(1) &&
-        rdsTextBlockUsable(2) &&
-        rdsTextBlockUsable(3)) {
+    if (receivedRtPlusDataGroup &&
+        rtTextComplete_) {
 
         const int itemToggle =
             (blockB >> 4) & 0x01;
@@ -1163,12 +1294,68 @@ void XdrClient::processRdsGroup(quint16 blockA, quint16 blockB,
             blockD & 0x001F;
 
         /*
-         * Beim Titelwechsel den alten RT+-Text stehen lassen.
-         * Er wird erst ersetzt, wenn die neuen RT+-Daten
-         * erfolgreich aus dem vollständigen RT gelesen wurden.
+         * RT+ Synchronisation:
+         *
+         * Ein Wechsel des Item-Toggle bedeutet ein neues
+         * Programmelement. Die neuen RT+-Positionsdaten dürfen
+         * nicht mehr auf den noch sichtbaren alten RadioText
+         * angewendet werden.
+         *
+         * Deshalb RT-Sammlung neu beginnen und dieses RT+-Paket
+         * noch nicht auswerten. Der alte sichtbare RT/RT+-Text
+         * bleibt dabei erhalten.
          */
-        rtPlusItemToggle_ =
-            itemToggle;
+        if (rtPlusItemToggle_ >= 0 &&
+            itemToggle != rtPlusItemToggle_) {
+
+            rtPlusItemToggle_ = itemToggle;
+
+            /*
+             * Das bisherige Item ist mit dem Togglewechsel
+             * beendet. Alten Titel/Interpret deshalb nicht
+             * weiter als aktuell anzeigen.
+             */
+            rtPlusTitle_.clear();
+            rtPlusArtist_.clear();
+
+            rtTextComplete_ = false;
+            rtBuffer_.fill(QLatin1Char(' '), 64);
+            rtSegments_.fill(false);
+
+            qInfo().noquote()
+                << "RT+ SYNC:"
+                << "Togglewechsel auf"
+                << itemToggle
+                << "- warte auf vollständigen neuen RadioText";
+
+            return;
+        }
+
+        /*
+         * Auch beim allerersten RT+-Item zunächst
+         * synchronisieren.
+         *
+         * Beim Programmstart kann radioText_ bereits einen
+         * allgemeinen Sendertext enthalten, während die
+         * RT+-Positionsdaten schon zum aktuellen Musiktitel
+         * gehören.
+         */
+        if (rtPlusItemToggle_ < 0) {
+
+            rtPlusItemToggle_ = itemToggle;
+
+            rtTextComplete_ = false;
+            rtBuffer_.fill(QLatin1Char(' '), 64);
+            rtSegments_.fill(false);
+
+            qInfo().noquote()
+                << "RT+ SYNC:"
+                << "erster Toggle"
+                << itemToggle
+                << "- warte auf vollständigen RadioText";
+
+            return;
+        }
 
         auto extractText =
             [&](int startPosition,
@@ -1188,17 +1375,51 @@ void XdrClient::processRdsGroup(quint16 blockA, quint16 blockB,
                         radioText_.size())
                     return QString();
 
+                const int endPosition =
+                    startPosition + count;
+
+                /*
+                 * RT+-Positionen dürfen nicht mitten in einem
+                 * Wort beginnen oder enden.
+                 *
+                 * Damit werden Positionsdaten verworfen, die
+                 * noch zu einem anderen RadioText gehören.
+                 */
+                auto isWordCharacter =
+                    [](QChar ch) -> bool {
+                        return ch.isLetterOrNumber();
+                    };
+
+                if (startPosition > 0 &&
+                    isWordCharacter(
+                        radioText_.at(startPosition - 1)) &&
+                    isWordCharacter(
+                        radioText_.at(startPosition))) {
+
+                    return QString();
+                }
+
+                if (endPosition <
+                        radioText_.size() &&
+                    isWordCharacter(
+                        radioText_.at(endPosition - 1)) &&
+                    isWordCharacter(
+                        radioText_.at(endPosition))) {
+
+                    return QString();
+                }
+
                 return radioText_
                     .mid(startPosition,
                          count)
                     .trimmed();
             };
 
-        QString newTitle =
-            rtPlusTitle_;
+        QString newTitle;
+        QString newArtist;
 
-        QString newArtist =
-            rtPlusArtist_;
+        bool gotTitle = false;
+        bool gotArtist = false;
 
         auto decodeTag =
             [&](int contentType,
@@ -1213,11 +1434,15 @@ void XdrClient::processRdsGroup(quint16 blockA, quint16 blockB,
                 if (value.isEmpty())
                     return;
 
-                if (contentType == 1)
+                if (contentType == 1) {
                     newTitle = value;
+                    gotTitle = true;
+                }
 
-                else if (contentType == 4)
+                else if (contentType == 4) {
                     newArtist = value;
+                    gotArtist = true;
+                }
             };
 
         if (itemRunning) {
@@ -1231,6 +1456,26 @@ void XdrClient::processRdsGroup(quint16 blockA, quint16 blockB,
                 contentType2,
                 start2,
                 length2);
+
+            /*
+             * Für die Musiktitelanzeige verlangen wir
+             * ITEM.TITLE und ITEM.ARTIST gemeinsam.
+             */
+            if (!gotTitle || !gotArtist) {
+
+                /*
+                 * Das Paket passt momentan nicht vollständig
+                 * zum RadioText.
+                 *
+                 * Einen bereits gültigen laufenden Titel
+                 * NICHT löschen. Er wird nur bei STOP oder
+                 * bei einem neuen Item-Toggle entfernt.
+                 */
+                qInfo().noquote()
+                    << "RT+: unvollständiges Paket - bisherigen Titel behalten";
+
+                return;
+            }
         }
 
         /*
