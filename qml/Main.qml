@@ -612,10 +612,14 @@ visible: true
 
             width: mainScroll.availableWidth
             implicitHeight: faceColumn.implicitHeight + 2 * window.panelMargin
-            height: Math.max(
-                implicitHeight,
-                window.height - 2 * window.outerMargin
-            )
+            // PC bleibt wie bisher auf Fensterhöhe.
+            // Android endet direkt nach dem tatsächlichen Inhalt.
+            height: Qt.platform.os === "android"
+                    ? implicitHeight
+                    : Math.max(
+                          implicitHeight,
+                          window.height - 2 * window.outerMargin
+                      )
             radius: 3
             border.width: 1
             border.color: "#70706a"
