@@ -748,32 +748,187 @@ visible: true
                     border.color: "#5b5b55"
                     border.width: false ? 3 : 5
 
+                    // Ein gemeinsamer Skalenrahmen. Die LED-Gruppe liegt
+                    // auf Desktop und Android-Tablet rechts innerhalb des Rahmens.
                     Rectangle {
                         anchors.fill: parent
                         anchors.margins: false ? 7 : 12
                         color: window.scaleGlass
                         border.color: "#77776f"
 
-                        FrequencyScale {
+                        RowLayout {
                             anchors.fill: parent
                             anchors.margins: false ? 2 : 5
-                            frequencyKhz: xdrClient.frequencyKhz
-                            minimumKhz: xdrClient.minimumFmFrequencyKhz
-                            maximumKhz: xdrClient.maximumFmFrequencyKhz
-                            scaleColor: window.scaleGlass
-                            textColor: window.ink
-                            pointerColor: window.amber
-                            presetFrequenciesKhz:
-                                window.stationPresetFrequencies
-                            presetPointerColor: "#725224"
-                            activePresetPointerColor: window.amber
+                            spacing: 2
 
-                            onPresetActivated:
-                                function(index, frequencyKhz) {
-                                    window.recallPreset(index)
+                            FrequencyScale {
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                Layout.minimumWidth: 0
+                                Layout.leftMargin: 10
+                                frequencyKhz: xdrClient.frequencyKhz
+                                minimumKhz: xdrClient.minimumFmFrequencyKhz
+                                maximumKhz: xdrClient.maximumFmFrequencyKhz
+                                scaleColor: window.scaleGlass
+                                textColor: window.ink
+                                pointerColor: window.amber
+                                presetFrequenciesKhz:
+                                    window.stationPresetFrequencies
+                                presetPointerColor: "#725224"
+                                activePresetPointerColor: window.amber
+
+                                onPresetActivated:
+                                    function(index, frequencyKhz) {
+                                        window.recallPreset(index)
+                                    }
+                            }
+
+                            Item {
+                                id: scaleLedArea
+                                visible: true
+                                Layout.preferredWidth: 72
+                                Layout.minimumWidth: 72
+                                Layout.maximumWidth: 72
+                                Layout.fillHeight: true
+
+                                Rectangle {
+                                    anchors.left: parent.left
+                                    anchors.top: parent.top
+                                    anchors.bottom: parent.bottom
+                                    anchors.topMargin: 14
+                                    anchors.bottomMargin: 14
+                                    width: 1
+                                    color: "#8a8a82"
                                 }
-                        }
 
+                                ColumnLayout {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: 0
+                                    width: 48
+                                    spacing: 10
+
+                                    ColumnLayout {
+                                        spacing: 3
+                                        Layout.fillWidth: true
+
+                                        Rectangle {
+                                            Layout.alignment: Qt.AlignHCenter
+                                            width: 13
+                                            height: 13
+                                            radius: 6.5
+                                            antialiasing: true
+                                            color:
+                                                (xdrClient.rtPlusItemRunningKnown
+                                                 && xdrClient.rtPlusItemRunning)
+                                                ? "#3a78d6"
+                                                : (xdrClient.rdsActive
+                                                   ? "#d7b45d"
+                                                   : "#4a4034")
+                                            border.width: 1
+                                            border.color:
+                                                (xdrClient.rtPlusItemRunningKnown
+                                                 && xdrClient.rtPlusItemRunning)
+                                                ? "#234c89"
+                                                : (xdrClient.rdsActive
+                                                   ? "#8f6f22"
+                                                   : "#77716b")
+
+                                            MouseArea {
+                                                id: rdsLedButton
+                                                anchors.fill: parent
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: {
+                                                    // Aktion für RDS-LED später ergänzen
+                                                }
+                                            }
+                                        }
+
+                                        Label {
+                                            text: "RDS"
+                                            color: window.ink
+                                            font.pixelSize: 9
+                                            font.bold: true
+                                            Layout.fillWidth: true
+                                            horizontalAlignment: Text.AlignHCenter
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        spacing: 3
+                                        Layout.fillWidth: true
+
+                                        Rectangle {
+                                            Layout.alignment: Qt.AlignHCenter
+                                            width: 13
+                                            height: 13
+                                            radius: 6.5
+                                            antialiasing: true
+                                            color: xdrClient.stereo
+                                                   ? "#c43a32" : "#51483f"
+                                            border.width: 1
+                                            border.color: xdrClient.stereo
+                                                          ? "#7e241f" : "#77716b"
+
+                                            MouseArea {
+                                                id: stereoLedButton
+                                                anchors.fill: parent
+                                                enabled: xdrClient.ready && !xdrClient.seeking
+                                                cursorShape: enabled
+                                                             ? Qt.PointingHandCursor
+                                                             : Qt.ArrowCursor
+                                                onClicked:
+                                                    xdrClient.setForcedMono(
+                                                        !xdrClient.forcedMono)
+                                            }
+                                        }
+
+                                        Label {
+                                            text: xdrClient.forcedMono ? "MONO" : "STEREO"
+                                            color: window.ink
+                                            font.pixelSize: 9
+                                            font.bold: true
+                                            Layout.fillWidth: true
+                                            horizontalAlignment: Text.AlignHCenter
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        spacing: 3
+                                        Layout.fillWidth: true
+
+                                        Rectangle {
+                                            Layout.alignment: Qt.AlignHCenter
+                                            width: 13
+                                            height: 13
+                                            radius: 6.5
+                                            antialiasing: true
+                                            color: "#51483f"
+                                            border.width: 1
+                                            border.color: "#77716b"
+
+                                            MouseArea {
+                                                id: thirdLedButton
+                                                anchors.fill: parent
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: {
+                                                    // Aktion für dritte LED später ergänzen
+                                                }
+                                            }
+                                        }
+
+                                        Label {
+                                            text: "—"
+                                            color: window.mutedInk
+                                            font.pixelSize: 9
+                                            font.bold: true
+                                            Layout.fillWidth: true
+                                            horizontalAlignment: Text.AlignHCenter
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -852,8 +1007,8 @@ visible: true
                             Layout.alignment: Qt.AlignHCenter
                             implicitWidth: false ? 118 : 130
                             text: xdrClient.forcedMono ? "MONO" : "AUTO"
-                            enabled: xdrClient.ready && !xdrClient.seeking
-                            onClicked: xdrClient.setForcedMono(!xdrClient.forcedMono)
+                            opacity: 0
+                            enabled: false
                         }
                     }
 
@@ -1020,6 +1175,8 @@ visible: true
                         }
 
                         Label {
+                            // Statuszeile bleibt als unsichtbarer Layout-Platzhalter
+                            // erhalten, damit TUNING und Drehknopf nicht verrutschen.
                             Layout.fillWidth: true
                             horizontalAlignment: Text.AlignHCenter
                             text: xdrClient.seeking
@@ -1031,6 +1188,7 @@ visible: true
                             font.pixelSize: window.smallFontSize
                             font.bold: true
                             elide: Text.ElideRight
+                            opacity: 0
                         }
                     }
 
@@ -1131,7 +1289,10 @@ visible: true
                                 }
 
                                 RowLayout {
+                                    // START/STOP und RDS-Status unten werden nicht mehr
+                                    // angezeigt; der Platz bleibt für unverändertes Layout.
                                     spacing: 8
+                                    opacity: 0
 
                                     Label {
                                         visible:
