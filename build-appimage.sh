@@ -8,6 +8,7 @@ DIST_DIR="$ROOT_DIR/dist"
 APPDIR="$DIST_DIR/${APP_NAME}.AppDir"
 TOOLS_DIR="$ROOT_DIR/.appimage-tools"
 PACKAGING_DIR="$ROOT_DIR/packaging"
+ASSETS_DIR="$ROOT_DIR/assets"
 
 fail() {
     echo "FEHLER: $*" >&2
@@ -43,7 +44,7 @@ fi
 [[ -n "${BINARY:-}" && -x "$BINARY" ]] || fail "Ausführbare Datei '$APP_NAME' wurde nicht gefunden."
 
 DESKTOP_FILE="$PACKAGING_DIR/${APP_NAME}.desktop"
-ICON_FILE="$PACKAGING_DIR/${APP_NAME}.svg"
+ICON_FILE="$ASSETS_DIR/${APP_NAME}.svg"
 
 cat > "$DESKTOP_FILE" <<EOF
 [Desktop Entry]
@@ -57,24 +58,7 @@ Categories=AudioVideo;Audio;Network;
 StartupNotify=true
 EOF
 
-cat > "$ICON_FILE" <<'EOF'
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
-  <defs>
-    <linearGradient id="metal" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#eeeeea"/>
-      <stop offset="0.55" stop-color="#c8c8c2"/>
-      <stop offset="1" stop-color="#9f9f99"/>
-    </linearGradient>
-  </defs>
-  <rect x="8" y="8" width="240" height="240" rx="30" fill="url(#metal)" stroke="#252525" stroke-width="8"/>
-  <rect x="30" y="48" width="196" height="76" rx="8" fill="#25282a"/>
-  <path d="M43 96h170" stroke="#e8d7a2" stroke-width="4"/>
-  <path d="M62 78v36M96 78v36M130 78v36M164 78v36M198 78v36" stroke="#e8d7a2" stroke-width="3"/>
-  <circle cx="178" cy="181" r="39" fill="#bababa" stroke="#303030" stroke-width="6"/>
-  <circle cx="178" cy="181" r="18" fill="#8d8d8d"/>
-  <text x="40" y="190" font-family="sans-serif" font-size="32" font-weight="bold" fill="#202020">XDR</text>
-</svg>
-EOF
+[[ -f "$ICON_FILE" ]] || fail "App-Icon fehlt: $ICON_FILE"
 
 LINUXDEPLOY="$TOOLS_DIR/linuxdeploy-${TOOL_ARCH}.AppImage"
 QT_PLUGIN="$TOOLS_DIR/linuxdeploy-plugin-qt-${TOOL_ARCH}.AppImage"

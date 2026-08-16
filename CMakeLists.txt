@@ -13,6 +13,13 @@ qt_add_executable(XdrTablet
     src/XdrClient.h
 )
 
+qt_add_resources(XdrTablet "app_icon"
+    PREFIX "/icons"
+    BASE "${CMAKE_CURRENT_SOURCE_DIR}/assets"
+    FILES
+        assets/XdrTablet.png
+)
+
 set_target_properties(XdrTablet PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
