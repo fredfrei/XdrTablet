@@ -46,6 +46,14 @@ Oder:
 ./build-linux.sh
 ./build/bin/XdrTablet
 ```
+Oder:
+ Appimage
+ Über den Dateimanager (Grafisch)
+ Machen Sie einen Rechtsklick auf die .AppImage-Datei.
+ Wählen Sie Eigenschaften.
+ Gehen Sie zum Reiter Zugriffsrechte (oder Berechtigungen).
+ Setzen Sie den Haken bei „Der Datei erlauben, als Programm auszuführen“ oder setzen Sie das Häkchen bei Ausführbar / Jedermann.
+ Schließen Sie das Fenster und doppelklicken Sie auf die Datei, um sie zu starten.
 
 ## Beispiel eines Signaltelegramms
 
