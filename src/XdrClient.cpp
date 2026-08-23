@@ -952,10 +952,16 @@ void XdrClient::processLine(const QString &line)
 
         if (fields.size() >= 4) {
             bool ok = false;
-            const int bw = fields.at(3).toInt(&ok);
-            if (ok && bw >= 0 && bw != bandwidthHz_) {
-                bandwidthHz_ = bw;
-                emit bandwidthChanged();
+            int bw = fields.at(3).toInt(&ok);
+
+            if (ok && bw >= 0) {
+                if (usbMode_ && bw < 1000)
+                    bw *= 1000;
+
+                if (bw != bandwidthHz_) {
+                    bandwidthHz_ = bw;
+                    emit bandwidthChanged();
+                }
             }
         }
 
