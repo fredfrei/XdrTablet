@@ -4,6 +4,7 @@
 #include <QCryptographicHash>
 #include <QDebug>
 #include <QSettings>
+#include <QSerialPortInfo>
 #include <QStringList>
 #include <QtGlobal>
 
@@ -70,6 +71,12 @@ XdrClient::XdrClient(QObject *parent) : QObject(parent)
     connect(&socket_, &QTcpSocket::disconnected, this, &XdrClient::onDisconnected);
     connect(&socket_, &QTcpSocket::readyRead, this, &XdrClient::onReadyRead);
     connect(&socket_, &QTcpSocket::errorOccurred, this, &XdrClient::onError);
+
+    connect(&serial_, &QSerialPort::readyRead,
+            this, &XdrClient::onSerialReadyRead);
+    connect(&serial_, &QSerialPort::errorOccurred,
+            this, &XdrClient::onSerialError);
+
     connect(&residualTimer_, &QTimer::timeout,
             this, &XdrClient::processResidualBuffer);
     connect(&authenticationTimer_, &QTimer::timeout,
@@ -82,7 +89,17 @@ XdrClient::XdrClient(QObject *parent) : QObject(parent)
 
 bool XdrClient::connected() const
 {
+    if (usbMode_)
+        return serial_.isOpen();
+
     return socket_.state() == QAbstractSocket::ConnectedState;
+}
+
+QString XdrClient::connectionType() const
+{
+    return usbMode_
+        ? QStringLiteral("usb")
+        : QStringLiteral("tcp");
 }
 
 bool XdrClient::ready() const { return ready_; }
@@ -143,6 +160,15 @@ QString XdrClient::receptionModeText() const
 void XdrClient::connectToServer(const QString &host, int port,
                                 const QString &password)
 {
+    if (serial_.isOpen())
+        serial_.close();
+
+    if (usbMode_) {
+        usbMode_ = false;
+        emit connectionTypeChanged();
+        emit connectedChanged();
+    }
+
     residualTimer_.stop();
     authenticationTimer_.stop();
     rdsTimeoutTimer_.stop();
@@ -168,11 +194,116 @@ void XdrClient::connectToServer(const QString &host, int port,
     socket_.connectToHost(cleanHost, static_cast<quint16>(port));
 }
 
-void XdrClient::disconnectFromServer()
+void XdrClient::connectToUsb(const QString &portName, int baudRate)
 {
+    residualTimer_.stop();
     authenticationTimer_.stop();
     rdsTimeoutTimer_.stop();
     cancelSeekSilently();
+
+    // Eine eventuell bestehende TCP-Verbindung beenden.
+    socket_.abort();
+
+    const bool modeChanged = !usbMode_;
+    usbMode_ = true;
+
+    if (modeChanged)
+        emit connectionTypeChanged();
+
+    if (serial_.isOpen())
+        serial_.close();
+
+    buffer_.clear();
+    pendingSalt_.clear();
+
+    // USB benötigt keine TCP-Authentifizierung.
+    authenticationSent_ = true;
+    startupSent_ = true;
+
+    setReady(false);
+    clearSignalData();
+    clearRdsData();
+
+    const QString cleanPort = portName.trimmed();
+
+    if (cleanPort.isEmpty()) {
+        setStatusText(QStringLiteral("Kein USB-Anschluss ausgewählt"));
+        emit connectedChanged();
+        return;
+    }
+
+    serial_.setPortName(cleanPort);
+    serial_.setBaudRate(baudRate);
+    serial_.setDataBits(QSerialPort::Data8);
+    serial_.setParity(QSerialPort::NoParity);
+    serial_.setStopBits(QSerialPort::OneStop);
+    serial_.setFlowControl(QSerialPort::NoFlowControl);
+
+    setStatusText(
+        QStringLiteral("Öffne USB %1 mit %2 Baud …")
+            .arg(cleanPort)
+            .arg(baudRate));
+
+    if (!serial_.open(QIODevice::ReadWrite)) {
+        setStatusText(
+            QStringLiteral("USB-Fehler: %1")
+                .arg(serial_.errorString()));
+
+        emit connectedChanged();
+        return;
+    }
+
+    qInfo().noquote()
+        << "USB CONNECT"
+        << cleanPort
+        << baudRate;
+
+    emit connectedChanged();
+
+    setStatusText(QStringLiteral("USB verbunden – starte Tuner"));
+
+    // Bei deinem Tuner getestet:
+    // x -> OK, T..., G..., Ss..., P..., R...
+    sendLine(QStringLiteral("x"), false);
+}
+
+QStringList XdrClient::availableSerialPorts() const
+{
+    QStringList ports;
+
+    for (const QSerialPortInfo &info : QSerialPortInfo::availablePorts())
+        ports.append(info.systemLocation());
+
+    return ports;
+}
+
+void XdrClient::disconnectFromServer()
+{
+    residualTimer_.stop();
+    authenticationTimer_.stop();
+    rdsTimeoutTimer_.stop();
+    cancelSeekSilently();
+
+    if (usbMode_) {
+        if (serial_.isOpen())
+            serial_.close();
+
+        buffer_.clear();
+        pendingSalt_.clear();
+        authenticationSent_ = false;
+        startupSent_ = false;
+
+        setReady(false);
+        clearSignalData();
+        clearRdsData();
+
+        emit connectedChanged();
+        setStatusText(QStringLiteral("Nicht verbunden"));
+
+        qInfo() << "USB DISCONNECTED";
+        return;
+    }
+
     socket_.disconnectFromHost();
 }
 
@@ -411,6 +542,56 @@ void XdrClient::onReadyRead()
         residualTimer_.start();
 }
 
+void XdrClient::onSerialReadyRead()
+{
+    if (!usbMode_)
+        return;
+
+    const QByteArray data = serial_.readAll();
+
+    if (data.isEmpty())
+        return;
+
+    qInfo().noquote()
+        << "USB RX RAW:"
+        << QString::fromUtf8(data)
+               .replace('\r', "\\r")
+               .replace('\n', "\\n");
+
+    buffer_ += data;
+
+    processCompleteLines();
+
+    if (!buffer_.isEmpty())
+        residualTimer_.start();
+}
+
+void XdrClient::onSerialError(QSerialPort::SerialPortError error)
+{
+    if (!usbMode_ || error == QSerialPort::NoError)
+        return;
+
+    qWarning().noquote()
+        << "USB ERROR:"
+        << serial_.errorString();
+
+    setStatusText(
+        QStringLiteral("USB-Fehler: %1")
+            .arg(serial_.errorString()));
+
+    if (error == QSerialPort::ResourceError ||
+        error == QSerialPort::DeviceNotFoundError ||
+        error == QSerialPort::PermissionError) {
+
+        setReady(false);
+
+        if (serial_.isOpen())
+            serial_.close();
+
+        emit connectedChanged();
+    }
+}
+
 void XdrClient::processCompleteLines()
 {
     while (true) {
@@ -498,18 +679,29 @@ void XdrClient::sendAuthentication(const QByteArray &salt)
 void XdrClient::sendLine(const QString &line, bool requireReady)
 {
     if (!connected()) {
-        setStatusText(QStringLiteral("Keine TCP-Verbindung"));
+        setStatusText(
+            usbMode_
+                ? QStringLiteral("Keine USB-Verbindung")
+                : QStringLiteral("Keine TCP-Verbindung"));
         return;
     }
+
     if (requireReady && !ready_) {
         setStatusText(QStringLiteral("Tuner ist noch nicht bereit"));
         return;
     }
 
     const QByteArray packet = line.toUtf8() + '\n';
-    qInfo().noquote() << "TX:" << line;
-    socket_.write(packet);
-    socket_.flush();
+
+    if (usbMode_) {
+        qInfo().noquote() << "USB TX:" << line;
+        serial_.write(packet);
+        serial_.flush();
+    } else {
+        qInfo().noquote() << "TCP TX:" << line;
+        socket_.write(packet);
+        socket_.flush();
+    }
 }
 
 void XdrClient::processLine(const QString &line)
@@ -541,6 +733,13 @@ void XdrClient::processLine(const QString &line)
 
     if (line == QStringLiteral("OK")) {
         setReady(true);
+
+        if (usbMode_) {
+            setStatusText(QStringLiteral("Tuner bereit"));
+            applySavedReceiverSettings();
+            return;
+        }
+
         setStatusText(
             QStringLiteral("Tuner bereit – stelle %1 MHz ein")
                 .arg(frequencyKhz_ / 1000.0, 0, 'f', 3));

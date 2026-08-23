@@ -2,6 +2,8 @@
 
 #include <QObject>
 #include <QTcpSocket>
+#include <QSerialPort>
+#include <QStringList>
 #include <QTimer>
 #include <QString>
 
@@ -11,6 +13,7 @@ class XdrClient : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)
+    Q_PROPERTY(QString connectionType READ connectionType NOTIFY connectionTypeChanged)
     Q_PROPERTY(bool ready READ ready NOTIFY readyChanged)
     Q_PROPERTY(QString statusText READ statusText NOTIFY statusTextChanged)
     Q_PROPERTY(int frequencyKhz READ frequencyKhz NOTIFY frequencyChanged)
@@ -59,6 +62,7 @@ public:
     explicit XdrClient(QObject *parent = nullptr);
 
     bool connected() const;
+    QString connectionType() const;
     bool ready() const;
     QString statusText() const;
     int frequencyKhz() const;
@@ -103,6 +107,9 @@ public:
 
     Q_INVOKABLE void connectToServer(const QString &host, int port,
                                      const QString &password);
+    Q_INVOKABLE void connectToUsb(const QString &portName,
+                                  int baudRate = 115200);
+    Q_INVOKABLE QStringList availableSerialPorts() const;
     Q_INVOKABLE void disconnectFromServer();
     Q_INVOKABLE void setFrequencyKhz(int khz);
     Q_INVOKABLE void stepFrequency(int deltaKhz);
@@ -125,6 +132,7 @@ public:
 
 signals:
     void connectedChanged();
+    void connectionTypeChanged();
     void readyChanged();
     void statusTextChanged();
     void frequencyChanged();
@@ -144,6 +152,8 @@ private slots:
     void onDisconnected();
     void onReadyRead();
     void onError(QAbstractSocket::SocketError error);
+    void onSerialReadyRead();
+    void onSerialError(QSerialPort::SerialPortError error);
     void processResidualBuffer();
     void onAuthenticationTimeout();
     void evaluateSeekStep();
@@ -183,6 +193,8 @@ private:
     void saveFrequency(int khz);
 
     QTcpSocket socket_;
+    QSerialPort serial_;
+    bool usbMode_ = false;
     QTimer residualTimer_;
     QTimer authenticationTimer_;
     QTimer seekEvaluationTimer_;

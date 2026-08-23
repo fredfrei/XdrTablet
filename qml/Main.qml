@@ -103,6 +103,23 @@ visible: true
         return hz > 0 ? Math.round(hz / 1000) + " kHz" : "Auto"
     }
 
+    function refreshUsbPorts() {
+        const ports = xdrClient.availableSerialPorts()
+
+        usbPortBox.model = ports
+
+        if (ports.length === 0) {
+            usbPortBox.currentIndex = -1
+            return
+        }
+
+        const wanted = appSettings.usbPort
+        const index = ports.indexOf(wanted)
+
+        usbPortBox.currentIndex = index >= 0 ? index : 0
+        appSettings.usbPort = usbPortBox.currentText
+    }
+
     function connectOrDisconnect() {
         if (powerEnabled) {
             powerEnabled = false
@@ -111,9 +128,16 @@ visible: true
         } else {
             powerEnabled = true
             if (!xdrClient.connected) {
-                xdrClient.connectToServer(hostField.text,
-                                          Number(portField.text),
-                                          passwordField.text)
+                if (connectionTypeBox.currentIndex === 1) {
+                    xdrClient.connectToUsb(
+                                usbPortBox.currentText,
+                                Number(usbBaudField.text))
+                } else {
+                    xdrClient.connectToServer(
+                                hostField.text,
+                                Number(portField.text),
+                                passwordField.text)
+                }
             }
         }
     }
@@ -219,6 +243,9 @@ visible: true
 
         property alias host: hostField.text
         property alias port: portField.text
+        property alias connectionType: connectionTypeBox.currentIndex
+        property string usbPort: "/dev/ttyUSB0"
+        property alias usbBaud: usbBaudField.text
 
         // false = nur TEF-Fehlerstatus 0 verwenden
         // true  = auch korrigierte RDS-Blöcke 1 und 2 verwenden
@@ -272,6 +299,8 @@ visible: true
         height: window.height
         modal: true
 
+        onOpened: window.refreshUsbPorts()
+
         background: Rectangle {
             color: "#deded8"
             border.color: "#777770"
@@ -313,10 +342,23 @@ visible: true
                     columnSpacing: 12
                     rowSpacing: false ? 6 : 10
 
-                    Label { text: "IP-Adresse"; color: window.ink }
+                    Label { text: "Verbindung"; color: window.ink }
+                    ComboBox {
+                        id: connectionTypeBox
+                        Layout.fillWidth: true
+                        model: ["TCP", "USB"]
+                        enabled: !xdrClient.connected
+                    }
+
+                    Label {
+                        text: "IP-Adresse"
+                        color: window.ink
+                        enabled: connectionTypeBox.currentIndex === 0
+                    }
                     TextField {
                         id: hostField
                         Layout.fillWidth: true
+                        enabled: connectionTypeBox.currentIndex === 0
                         text: "10.193.149.131"
                         placeholderText: "IP-Adresse"
                         inputMethodHints: Qt.ImhUrlCharactersOnly
@@ -326,6 +368,7 @@ visible: true
                     TextField {
                         id: portField
                         Layout.fillWidth: true
+                        enabled: connectionTypeBox.currentIndex === 0
                         text: "7373"
                         placeholderText: "Port"
                         inputMethodHints: Qt.ImhDigitsOnly
@@ -335,10 +378,45 @@ visible: true
                     TextField {
                         id: passwordField
                         Layout.fillWidth: true
+                        enabled: connectionTypeBox.currentIndex === 0
                         text: ""
                         placeholderText: "leer möglich"
                         echoMode: TextInput.Password
                         passwordCharacter: "●"
+                    }
+
+                    Label {
+                        text: "USB-Anschluss"
+                        color: window.ink
+                        enabled: connectionTypeBox.currentIndex === 1
+                    }
+                    ComboBox {
+                        id: usbPortBox
+                        Layout.fillWidth: true
+                        enabled: connectionTypeBox.currentIndex === 1
+                                 && count > 0
+                        model: []
+
+                        displayText: count > 0
+                                     ? currentText
+                                     : "Kein serieller Port gefunden"
+
+                        onActivated: {
+                            appSettings.usbPort = currentText
+                        }
+                    }
+
+                    Label {
+                        text: "USB-Baudrate"
+                        color: window.ink
+                        enabled: connectionTypeBox.currentIndex === 1
+                    }
+                    TextField {
+                        id: usbBaudField
+                        Layout.fillWidth: true
+                        text: "115200"
+                        inputMethodHints: Qt.ImhDigitsOnly
+                        enabled: connectionTypeBox.currentIndex === 1
                     }
                 }
 
