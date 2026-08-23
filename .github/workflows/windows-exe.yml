@@ -14,6 +14,11 @@ jobs:
       - name: Repository auschecken
         uses: actions/checkout@v4
 
+      - name: MSVC 2022 aktivieren
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       - name: Qt installieren
         uses: jurplel/install-qt-action@v4
         with:
@@ -24,13 +29,19 @@ jobs:
           modules: qtserialport
           cache: true
 
+      - name: Compiler prüfen
+        shell: pwsh
+        run: |
+          where.exe cl
+          cl 2>&1 | Select-Object -First 5
+
       - name: Projekt konfigurieren
         shell: pwsh
         run: |
-          & "$env:QT_ROOT_DIR\bin\qt-cmake.bat" `
+          cmake `
             -S . `
             -B build-windows `
-            -GNinja `
+            -G Ninja `
             -DCMAKE_BUILD_TYPE=Release
 
       - name: XdrTablet bauen
