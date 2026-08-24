@@ -34,8 +34,8 @@ XdrClient::XdrClient(QObject *parent) : QObject(parent)
         10, settings.value(QStringLiteral("radio/smallStepKhz"), 100).toInt(), 1000);
     largeStepKhz_ = qBound(
         100, settings.value(QStringLiteral("radio/largeStepKhz"), 1000).toInt(), 5000);
-    seekThreshold_ = qBound(
-        0, settings.value(QStringLiteral("radio/seekThreshold"), 30).toInt(), 80);
+    // PE5PVB Standardwert für FM scan sensitivity.
+    seekThreshold_ = 4;
 
     forcedMono_ = settings.value(QStringLiteral("receiver/forcedMono"), false).toBool();
     bandwidthSettingHz_ = boundedBandwidth(
@@ -361,12 +361,16 @@ void XdrClient::setLargeStepKhz(int khz)
 
 void XdrClient::setSeekThreshold(int value)
 {
-    value = qBound(0, value, 80);
-    if (seekThreshold_ == value)
-        return;
-    seekThreshold_ = value;
-    QSettings().setValue(QStringLiteral("radio/seekThreshold"), value);
-    emit tuningSettingsChanged();
+    value = qBound(1, value, 30);
+
+    if (seekThreshold_ != value) {
+        seekThreshold_ = value;
+        emit tuningSettingsChanged();
+    }
+
+    // PE5PVB: I1..I30 = FM scan sensitivity.
+    // Die Firmware speichert den Wert selbst im EEPROM.
+    sendLine(QStringLiteral("I%1").arg(value));
 }
 
 void XdrClient::startSeek(int direction)
@@ -767,9 +771,32 @@ void XdrClient::processLine(const QString &line)
 
             saveFrequency(value);
 
-            if (!seeking_)
+            if (seeking_) {
+                // PE5PVB sendet bei jedem Suchschritt eine neue T-Frequenz.
+                // Solange T-Meldungen kommen, läuft der Suchlauf weiter.
+                seekEvaluationTimer_.start();
+            } else {
                 setStatusText(QStringLiteral("Tuner bereit"));
+            }
         }
+        return;
+    }
+
+    if (line.startsWith('I')) {
+        bool ok = false;
+        const int value = line.mid(1).toInt(&ok);
+
+        if (ok && value >= 1 && value <= 30) {
+            if (seekThreshold_ != value) {
+                seekThreshold_ = value;
+                emit tuningSettingsChanged();
+            }
+
+            qInfo().noquote()
+                << "PE5PVB FM-Suchempfindlichkeit:"
+                << value;
+        }
+
         return;
     }
 
@@ -798,13 +825,9 @@ void XdrClient::processLine(const QString &line)
                               ? QStringLiteral("Suchlauf aufwärts …")
                               : QStringLiteral("Suchlauf abwärts …"));
         } else if (value == 0) {
-            if (seeking_) {
-                finishSeek(
-                    QStringLiteral("Suchlauf beendet bei %1 MHz")
-                        .arg(frequencyKhz_ / 1000.0, 0, 'f', 3));
-            } else {
-                setStatusText(QStringLiteral("Tuner bereit"));
-            }
+            // PE5PVB sendet C0 bereits nach der Bearbeitung von C1/C2.
+            // Der interne Suchlauf der Firmware kann danach weiterlaufen.
+            // Deshalb C0 nicht als Suchende behandeln.
         }
 
         return;
@@ -980,6 +1003,9 @@ void XdrClient::applySavedReceiverSettings()
     sendLine(QStringLiteral("D%1").arg(deemphasis_));
     sendLine(QStringLiteral("A%1").arg(agc_));
     sendDspCommand();
+
+    // I0 ändert den PE5PVB-Wert nicht, liefert aber I<aktueller Wert>.
+    sendLine(QStringLiteral("I0"));
 }
 
 void XdrClient::sendDspCommand()
@@ -1017,6 +1043,15 @@ void XdrClient::setRdsErrorCorrectionEnabled(bool enabled)
      */
     rtBuffer_.fill(QLatin1Char(' '), 64);
     rtSegments_.fill(false);
+
+    // Auch PS und PTY mit der neuen Fehlerfilter-Einstellung
+    // vollständig neu empfangen.
+    psBuffer_.fill(QLatin1Char(' '), 8);
+    psSegments_.fill(false);
+    psText_.clear();
+
+    ptyCode_ = -1;
+    ptyText_.clear();
 
     radioText_.clear();
     rtPlusTitle_.clear();
@@ -1227,21 +1262,29 @@ void XdrClient::processRdsGroup(quint16 blockA, quint16 blockB,
         ((blockB >> 11) & 0x01) != 0;
 
     /*
-     * PTY bleibt vorerst unverändert:
-     * korrigierte B-Blöcke dürfen weiterhin verwendet werden.
+     * PTY:
+     * Fehlerkorrektur AUS -> nur fehlerfreier Block B
+     * Fehlerkorrektur EIN -> auch korrigierte Blöcke 1/2
      */
-    updatePty(
-        (blockB >> 5) & 0x1F);
+    if (rdsTextBlockUsable(1)) {
+        updatePty(
+            (blockB >> 5) & 0x1F);
+    }
 
     /*
      * ============================================================
      * PS
      * ============================================================
      *
-     * Bleibt ebenfalls unverändert.
+     * Block B enthält die Segmentnummer,
+     * Block D enthält die beiden PS-Zeichen.
+     *
+     * Beide Blöcke müssen zur Einstellung des vorhandenen
+     * RDS-Fehlerkorrektur-Schalters passen.
      */
     if (groupType == 0 &&
-        rdsBlockError(errors, 3) < 3) {
+        rdsTextBlockUsable(1) &&
+        rdsTextBlockUsable(3)) {
 
         updatePsSegment(
             blockB & 0x03,
@@ -2118,18 +2161,11 @@ void XdrClient::evaluateSeekStep()
     if (!seeking_)
         return;
 
-    const double average = seekSignalSamples_ > 0
-        ? seekSignalSum_ / seekSignalSamples_
-        : 0.0;
-
-    if (seekSignalSamples_ > 0 && average >= seekThreshold_) {
-        finishSeek(QStringLiteral("Sender bei %1 MHz gefunden · Signal %2")
-                       .arg(frequencyKhz_ / 1000.0, 0, 'f', 3)
-                       .arg(average, 0, 'f', 2));
-        return;
-    }
-
-    advanceSeek();
+    // Es kamen für 650 ms keine weiteren T-Frequenzmeldungen.
+    // Damit hat die PE5PVB-Firmware ihren Suchlauf angehalten.
+    finishSeek(
+        QStringLiteral("Suchlauf beendet bei %1 MHz")
+            .arg(frequencyKhz_ / 1000.0, 0, 'f', 3));
 }
 
 void XdrClient::finishSeek(const QString &message)

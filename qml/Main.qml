@@ -580,14 +580,19 @@ visible: true
                                              window.largeStepValues[currentIndex])
                         }
 
-                        Label { text: "Suchschwelle" }
+                        Label { text: "Suchempfindlichkeit" }
                         SpinBox {
-                            from: 0
-                            to: 80
+                            from: 1
+                            to: 30
                             value: xdrClient.seekThreshold
                             editable: true
                             enabled: !xdrClient.seeking
                             onValueModified: xdrClient.setSeekThreshold(value)
+                        }
+
+                        Label {
+                            text: "1 = streng · 30 = empfindlich"
+                            opacity: 0.7
                         }
                     }
                 }
