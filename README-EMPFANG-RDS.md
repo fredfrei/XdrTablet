@@ -206,11 +206,11 @@ Wenn PS, PTY oder RadioText falsch erscheinen:
 Für die Fehlersuche ist ein Log hilfreich, in dem sowohl die RDS-Rohdaten als auch der Zeitpunkt des Umschaltens der Fehlerkorrektur enthalten sind.
 
 ## Aktueller Entwicklungsstand
-Bei klick auf die RDS LED neuer RDSMonitor
-Bei klick auf die RDTMC LED neuer TMCMonitor
+
 
 Der RDS-Teil von XdrTablet unterstützt derzeit:
-
+- Bei klick auf die RDS LED neuer RDSMonitor
+- Bei klick auf die RDTMC LED neuer TMCMonitor
 - PI
 - PS
 - PTY
@@ -227,4 +227,4 @@ Der RDS-Teil von XdrTablet unterstützt derzeit:
 
 ### Noch offen
 
-Die wichtigste geplante Verbesserung betrifft die PS-Anzeige. Einzelne PS-Segmente sollen künftig mehrfach bestätigt werden, bevor sie übernommen werden. Dadurch soll die Anzeige bei schwachem oder gestörtem RDS-Empfang deutlich stabiler werden.
+viel zu viel
