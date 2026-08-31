@@ -130,9 +130,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          gh release view v0.1.4
+          gh release view v0.1.4 --repo "$GITHUB_REPOSITORY"
 
-          gh release upload v0.1.4             XdrTablet-Android-arm64.apk             --clobber
+          gh release upload v0.1.4             XdrTablet-Android-arm64.apk             --clobber --repo "$GITHUB_REPOSITORY"
 
           echo
           echo "Release-Asset erfolgreich aktualisiert."
