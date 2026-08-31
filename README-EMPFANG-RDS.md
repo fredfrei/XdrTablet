@@ -85,17 +85,7 @@ Bei gestörtem Empfang kann jedoch ein einzelnes fehlerhaftes oder korrigiertes 
 
 ### Geplante Verbesserung
 
-Die PS-Auswertung soll noch robuster werden. Ein Segment soll künftig erst dann als gültig übernommen werden, wenn es mehrfach identisch empfangen wurde.
-
-Beispiel:
-
-```text
-Segment 0: AC
-Segment 0: AC
-→ bestätigt
-```
-
-Erst wenn alle vier Segmente bestätigt sind, soll der vollständige PS-Name angezeigt werden.
+Viel zu machen
 
 ## PTY – Program Type
 
@@ -203,22 +193,6 @@ Dazu gehören:
 
 Nach dem Umschalten kann es einige Sekunden dauern, bis wieder vollständige RDS-Informationen angezeigt werden.
 
-## Warum RDS trotz starkem Signal falsch sein kann
-
-Eine hohe Signalstärke garantiert keinen fehlerfreien RDS-Empfang.
-
-Mögliche Ursachen sind:
-
-- Mehrwegeempfang
-- Reflexionen
-- starke Nachbarkanäle
-- Gleichkanalstörungen
-- kurzzeitige Empfangseinbrüche
-- grenzwertige Fehlerkorrektur
-- wechselnde Antennensituation
-
-Deshalb kann ein Sender mit guter Feldstärke trotzdem fehlerhafte PS- oder RadioText-Segmente liefern. Umgekehrt kann ein schwächeres, aber sauberes Signal sehr stabilen RDS-Empfang ermöglichen.
-
 ## Hinweise zum Testen
 
 Wenn PS, PTY oder RadioText falsch erscheinen:
@@ -232,6 +206,8 @@ Wenn PS, PTY oder RadioText falsch erscheinen:
 Für die Fehlersuche ist ein Log hilfreich, in dem sowohl die RDS-Rohdaten als auch der Zeitpunkt des Umschaltens der Fehlerkorrektur enthalten sind.
 
 ## Aktueller Entwicklungsstand
+Bei klick auf die RDS LED neuer RDSMonitor
+Bei klick auf die RDTMC LED neuer TMCMonitor
 
 Der RDS-Teil von XdrTablet unterstützt derzeit:
 
@@ -247,6 +223,7 @@ Der RDS-Teil von XdrTablet unterstützt derzeit:
 - RDS-Aktivitätsanzeige
 - Filterung anhand der RDS-Blockfehler
 - umschaltbare Verwendung korrigierter Blöcke
+- TMC Anzeige
 
 ### Noch offen
 

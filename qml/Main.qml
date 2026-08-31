@@ -71,6 +71,10 @@ visible: true
     Component.onCompleted: {
         xdrClient.setRdsErrorCorrectionEnabled(
             appSettings.rdsErrorCorrectionEnabled)
+
+        // Android verwendet ausschließlich TCP.
+        if (Qt.platform.os === "android")
+            connectionTypeBox.currentIndex = 0
     }
 
     property color aluminiumLight: "#eeeeea"
@@ -82,6 +86,1118 @@ visible: true
     property color amber: "#b66c27"
     property color woodDark: "#4b2d1d"
     property color woodLight: "#795039"
+
+    Window {
+        id: rdsInfoWindow
+
+        width: 1180
+        height: 820
+        minimumWidth: 850
+        minimumHeight: 600
+
+        visible: false
+        title: "RDS-Monitor"
+
+        color: window.aluminiumMid
+
+        flags: Qt.Dialog
+               | Qt.WindowTitleHint
+               | Qt.WindowCloseButtonHint
+               | Qt.WindowMaximizeButtonHint
+
+        modality: Qt.NonModal
+        transientParent: window
+
+        property string saveMessage: ""
+
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: 8
+
+            radius: 8
+            color: "#d8d8cc"
+            border.width: 1
+            border.color: "#8a8a82"
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 10
+                spacing: 8
+
+                /*
+                 * Fester Kopf
+                 */
+                RowLayout {
+                    Layout.fillWidth: true
+
+                    Label {
+                        Layout.fillWidth: true
+
+                        text: xdrClient.psText.length > 0
+                              ? xdrClient.psText
+                              : "RDS-Monitor"
+
+                        color: window.ink
+                        font.pixelSize: 22
+                        font.bold: true
+                    }
+
+                    Label {
+                        text: "RDS-Monitor"
+                        color: window.mutedInk
+                        font.pixelSize: 13
+                        font.bold: true
+                    }
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: "Nur Daten aus dem empfangenen RDS-Signal"
+                    color: window.mutedInk
+                    font.pixelSize: 10
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 1
+                    color: "#8a8a82"
+                }
+
+                /*
+                 * Hauptbereich
+                 */
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    spacing: 10
+
+                    /*
+                     * ==================================================
+                     * LINKE SEITE
+                     * ==================================================
+                     */
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        Layout.preferredWidth: 1
+
+                        radius: 6
+                        color: "#eeeee6"
+
+                        border.width: 1
+                        border.color: "#a5a59d"
+
+                        ScrollView {
+                            id: leftRdsScroll
+
+                            anchors.fill: parent
+                            anchors.margins: 8
+
+                            clip: true
+
+                            contentWidth: availableWidth
+
+                            ScrollBar.horizontal.policy:
+                                ScrollBar.AlwaysOff
+
+                            ColumnLayout {
+                                width: leftRdsScroll.availableWidth
+                                spacing: 10
+
+                                /*
+                                 * Basis
+                                 */
+                                Label {
+                                    text: "Basisdaten"
+                                    color: window.ink
+                                    font.pixelSize: 15
+                                    font.bold: true
+                                }
+
+                                GridLayout {
+                                    Layout.fillWidth: true
+                                    columns: 2
+                                    columnSpacing: 14
+                                    rowSpacing: 4
+
+                                    Label {
+                                        text: "PI"
+                                        color: window.mutedInk
+                                    }
+
+                                    Label {
+                                        Layout.fillWidth: true
+                                        text: xdrClient.piCode
+                                        color: window.ink
+                                        font.family: "monospace"
+                                        font.bold: true
+                                    }
+
+                                    Label {
+                                        text: "PS"
+                                        color: window.mutedInk
+                                    }
+
+                                    Label {
+                                        Layout.fillWidth: true
+                                        text: xdrClient.psText.length > 0
+                                              ? xdrClient.psText
+                                              : "–"
+                                        color: window.ink
+                                    }
+
+                                    Label {
+                                        text: "PTY"
+                                        color: window.mutedInk
+                                    }
+
+                                    Label {
+                                        Layout.fillWidth: true
+                                        text: xdrClient.ptyCode >= 0
+                                              ? xdrClient.ptyCode
+                                                + "  "
+                                                + xdrClient.ptyText
+                                              : "–"
+                                        color: window.ink
+                                    }
+
+                                    Label {
+                                        text: "ECC"
+                                        color: window.mutedInk
+                                    }
+
+                                    Label {
+                                        Layout.fillWidth: true
+                                        text: xdrClient.eccCode !== "--"
+                                              ? xdrClient.eccCode
+                                              : "–"
+                                        color: window.ink
+                                    }
+
+                                    Label {
+                                        text: "PIN"
+                                        color: window.mutedInk
+                                    }
+
+                                    Label {
+                                        Layout.fillWidth: true
+                                        text: xdrClient.pinText.length > 0
+                                              ? xdrClient.pinText
+                                              : "–"
+                                        color: window.ink
+                                    }
+
+                                    Label {
+                                        text: "CT"
+                                        color: window.mutedInk
+                                    }
+
+                                    Label {
+                                        Layout.fillWidth: true
+                                        text: xdrClient.ctText.length > 0
+                                              ? xdrClient.ctText
+                                              : "–"
+                                        color: window.ink
+                                    }
+
+                                    Label {
+                                        text: "RDS"
+                                        color: window.mutedInk
+                                    }
+
+                                    Label {
+                                        Layout.fillWidth: true
+                                        text: xdrClient.rdsActive
+                                              ? xdrClient.rdsGroupCount
+                                                + " Gruppen"
+                                              : "nicht aktiv"
+                                        color: window.ink
+                                    }
+                                }
+
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    height: 1
+                                    color: "#aaa"
+                                }
+
+                                /*
+                                 * Radiotext
+                                 */
+                                Label {
+                                    text: "Radiotext / RT+"
+                                    color: window.ink
+                                    font.pixelSize: 15
+                                    font.bold: true
+                                }
+
+                                Label {
+                                    Layout.fillWidth: true
+                                    text: xdrClient.radioText.length > 0
+                                          ? xdrClient.radioText
+                                          : "–"
+                                    color: window.ink
+                                    wrapMode: Text.WordWrap
+                                }
+
+                                GridLayout {
+                                    Layout.fillWidth: true
+                                    columns: 2
+                                    columnSpacing: 14
+                                    rowSpacing: 4
+
+                                    Label {
+                                        text: "Titel"
+                                        color: window.mutedInk
+                                    }
+
+                                    Label {
+                                        Layout.fillWidth: true
+                                        text: xdrClient.rtPlusTitle.length > 0
+                                              ? xdrClient.rtPlusTitle
+                                              : "–"
+                                        color: window.ink
+                                        wrapMode: Text.WordWrap
+                                    }
+
+                                    Label {
+                                        text: "Interpret"
+                                        color: window.mutedInk
+                                    }
+
+                                    Label {
+                                        Layout.fillWidth: true
+                                        text: xdrClient.rtPlusArtist.length > 0
+                                              ? xdrClient.rtPlusArtist
+                                              : "–"
+                                        color: window.ink
+                                        wrapMode: Text.WordWrap
+                                    }
+                                }
+
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    height: 1
+                                    color: "#aaa"
+                                }
+
+                                /*
+                                 * Flags
+                                 */
+                                Label {
+                                    text: "TP / TA / MS / DI"
+                                    color: window.ink
+                                    font.pixelSize: 15
+                                    font.bold: true
+                                }
+
+                                Label {
+                                    Layout.fillWidth: true
+                                    text: xdrClient.rdsFlagsText
+                                    color: window.ink
+                                    font.family: "monospace"
+                                }
+
+                                GridLayout {
+                                    Layout.fillWidth: true
+                                    columns: 2
+                                    columnSpacing: 14
+
+                                    Label {
+                                        text: "PTYN"
+                                        color: window.mutedInk
+                                    }
+
+                                    Label {
+                                        Layout.fillWidth: true
+                                        text: xdrClient.rdsPtynText
+                                        color: window.ink
+                                    }
+
+                                    Label {
+                                        text: "Sprache"
+                                        color: window.mutedInk
+                                    }
+
+                                    Label {
+                                        Layout.fillWidth: true
+                                        text: xdrClient.rdsLanguageText
+                                        color: window.ink
+                                    }
+                                }
+
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    height: 1
+                                    color: "#aaa"
+                                }
+
+                                /*
+                                 * Gruppen
+                                 */
+                                Label {
+                                    text: "RDS-Gruppen 0A bis 15B"
+                                    color: window.ink
+                                    font.pixelSize: 15
+                                    font.bold: true
+                                }
+
+                                Label {
+                                    Layout.fillWidth: true
+                                    text: xdrClient.rdsGroupStats
+                                    color: window.ink
+                                    font.family: "monospace"
+                                    font.pixelSize: 12
+                                }
+
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    height: 1
+                                    color: "#aaa"
+                                }
+
+                                /*
+                                 * Fehlerstatus
+                                 */
+                                Label {
+                                    text: "Block-Fehlerstatus"
+                                    color: window.ink
+                                    font.pixelSize: 15
+                                    font.bold: true
+                                }
+
+                                Label {
+                                    Layout.fillWidth: true
+                                    text: xdrClient.rdsErrorStats
+                                    color: window.ink
+                                    font.family: "monospace"
+                                    font.pixelSize: 12
+                                }
+
+                                Label {
+                                    Layout.fillWidth: true
+                                    text:
+                                        "0 = fehlerfrei, "
+                                        + "1/2 = korrigiert, "
+                                        + "3 = unbrauchbar"
+                                    color: window.mutedInk
+                                    font.pixelSize: 10
+                                }
+
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    height: 1
+                                    color: "#aaa"
+                                }
+
+                                /*
+                                 * Rohgruppen
+                                 */
+                                Label {
+                                    text: "Letzte 30 Rohgruppen"
+                                    color: window.ink
+                                    font.pixelSize: 15
+                                    font.bold: true
+                                }
+
+                                Label {
+                                    Layout.fillWidth: true
+
+                                    text:
+                                        xdrClient.rdsRawGroups.length > 0
+                                        ? xdrClient.rdsRawGroups
+                                        : "–"
+
+                                    color: window.ink
+
+                                    font.family: "monospace"
+                                    font.pixelSize: 11
+
+                                    wrapMode:
+                                        Text.WrapAnywhere
+                                }
+
+                                Item {
+                                    Layout.preferredHeight: 5
+                                }
+                            }
+                        }
+                    }
+
+                    /*
+                     * ==================================================
+                     * RECHTE SEITE
+                     * ==================================================
+                     */
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        Layout.preferredWidth: 1
+
+                        spacing: 8
+
+                        /*
+                         * AF
+                         */
+                        Rectangle {
+                            Layout.fillWidth: true
+                            implicitHeight:
+                                afRightColumn.implicitHeight + 18
+
+                            radius: 6
+                            color: "#eeeee6"
+
+                            border.width: 1
+                            border.color: "#a5a59d"
+
+                            ColumnLayout {
+                                id: afRightColumn
+
+                                anchors.fill: parent
+                                anchors.margins: 8
+
+                                spacing: 4
+
+                                Label {
+                                    text: "Alternative Frequenzen (AF)"
+                                    color: window.ink
+                                    font.pixelSize: 15
+                                    font.bold: true
+                                }
+
+                                Label {
+                                    Layout.fillWidth: true
+
+                                    text: xdrClient.rdsAfText
+
+                                    color: window.ink
+
+                                    font.family: "monospace"
+                                    font.pixelSize: 11
+
+                                    wrapMode:
+                                        Text.WordWrap
+                                }
+                            }
+                        }
+
+                        /*
+                         * ODA
+                         */
+                        Rectangle {
+                            Layout.fillWidth: true
+                            implicitHeight:
+                                odaRightColumn.implicitHeight + 18
+
+                            radius: 6
+                            color: "#eeeee6"
+
+                            border.width: 1
+                            border.color: "#a5a59d"
+
+                            ColumnLayout {
+                                id: odaRightColumn
+
+                                anchors.fill: parent
+                                anchors.margins: 8
+
+                                spacing: 4
+
+                                Label {
+                                    text: "ODA / Applications"
+                                    color: window.ink
+                                    font.pixelSize: 15
+                                    font.bold: true
+                                }
+
+                                Label {
+                                    Layout.fillWidth: true
+
+                                    text: xdrClient.rdsOdaText
+
+                                    color: window.ink
+
+                                    font.family: "monospace"
+                                    font.pixelSize: 11
+
+                                    wrapMode:
+                                        Text.WordWrap
+                                }
+                            }
+                        }
+
+                        /*
+                         * EON bekommt ALLES was übrig bleibt
+                         */
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            Layout.minimumHeight: 250
+
+                            radius: 6
+                            color: "#eeeee6"
+
+                            border.width: 1
+                            border.color: "#a5a59d"
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 8
+                                spacing: 4
+
+                                Label {
+                                    text: "EON / Other Networks"
+                                    color: window.ink
+                                    font.pixelSize: 15
+                                    font.bold: true
+                                }
+
+                                Flickable {
+                                    id: eonFlick
+
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+
+                                    clip: true
+                                    interactive: true
+
+                                    contentWidth: width
+                                    contentHeight:
+                                        eonMonitorText.implicitHeight
+
+                                    boundsBehavior:
+                                        Flickable.StopAtBounds
+
+                                    ScrollBar.vertical: ScrollBar {
+                                        policy: ScrollBar.AsNeeded
+                                    }
+
+                                    Text {
+                                        id: eonMonitorText
+
+                                        width:
+                                            Math.max(
+                                                1,
+                                                eonFlick.width - 14)
+
+                                        text:
+                                            xdrClient.rdsEonText
+
+                                        color: window.ink
+
+                                        font.family:
+                                            "monospace"
+
+                                        font.pixelSize: 11
+
+                                        wrapMode:
+                                            Text.Wrap
+
+                                        textFormat:
+                                            Text.PlainText
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                /*
+                 * Feste untere Leiste
+                 */
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 1
+                    color: "#8a8a82"
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    Label {
+                        Layout.fillWidth: true
+
+                        visible:
+                            rdsInfoWindow.saveMessage.length > 0
+
+                        text:
+                            rdsInfoWindow.saveMessage
+
+                        color:
+                            window.mutedInk
+
+                        font.pixelSize: 10
+
+                        elide:
+                            Text.ElideMiddle
+                    }
+
+                    Button {
+                        text: "Speichern"
+
+                        onClicked: {
+                            rdsInfoWindow.saveMessage =
+                                xdrClient.saveRdsMonitor()
+                        }
+                    }
+
+                    Button {
+                        text: "Monitor zurücksetzen"
+
+                        onClicked: {
+                            xdrClient.clearRdsMonitor()
+                            rdsInfoWindow.saveMessage = ""
+                        }
+                    }
+
+                    Button {
+                        text: "Schließen"
+
+                        onClicked:
+                            rdsInfoWindow.close()
+                    }
+                }
+            }
+        }
+    }
+
+    // XDRTABLET_TMC_LED_TEST_V1
+    Window {
+        id: tmcWindow
+        // XDRTABLET_TMC_LED_TEST_V1
+        // XDRTABLET_TMC_SINGLE_V1
+        width: 700
+        height: 600
+        minimumWidth: 520
+        minimumHeight: 420
+        visible: false
+        title: "TMC / ALERT-C"
+        color: window.aluminiumMid
+        flags: Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint
+        modality: Qt.NonModal
+        transientParent: window
+
+        // XDRTABLET_TMC_CLEAN_VIEW_V1
+        property bool showTechnicalDetails: false
+
+        // XDRTABLET_TMC_SECTION_NAMES_V1
+        function tmcLocationName(line) {
+            if (!line || line.length === 0)
+                return ""
+
+            const colon = line.indexOf(":")
+            if (colon < 0)
+                return ""
+
+            const value = line.substring(colon + 1).trim()
+            const parts = value.split("|")
+
+            if (parts.length < 2)
+                return ""
+
+            const road = parts[0].trim()
+
+            for (let i = 1; i < parts.length; ++i) {
+                const candidate = parts[i].trim()
+
+                if (candidate.length === 0)
+                    continue
+
+                // Koordinaten nicht als Ortsnamen verwenden.
+                if (/^-?\d+[\.,]\d+\s*,\s*-?\d+[\.,]\d+$/.test(candidate))
+                    continue
+
+                if (candidate === road)
+                    continue
+
+                return candidate
+            }
+
+            return ""
+        }
+
+        function compactTmcMessage(block) {
+            const lines = block.split("\n")
+            const out = []
+
+            let detourEstablished = false
+            let detourRecommended = false
+            let sectionStartName = ""
+            let sectionEndName = ""
+
+            for (let i = 0; i < lines.length; ++i) {
+                const probe = lines[i].trim()
+
+                if (probe.indexOf("Start:") === 0)
+                    sectionStartName = tmcLocationName(probe)
+                else if (probe.indexOf("Ende :") === 0
+                         || probe.indexOf("Ende:") === 0)
+                    sectionEndName = tmcLocationName(probe)
+            }
+
+            for (let i = 0; i < lines.length; ++i) {
+                let line = lines[i]
+                let t = line.trim()
+
+                if (t.length === 0)
+                    continue
+
+                if (i === 0) {
+                    out.push(t)
+                    continue
+                }
+
+                if (t.indexOf("TMC-MULTI:") === 0
+                        || /^Event\s+\d+\s+Location\s+\d+/.test(t)
+                        || t.indexOf("Rohwert:") === 0
+                        || t === "Optional:"
+                        || t.indexOf("- Separator") === 0
+                        || t.indexOf("- Steuerung: Richtung umkehren") === 0) {
+                    continue
+                }
+
+                if (t.indexOf("Richtung:") === 0)
+                    continue
+
+                if (t.indexOf("Dauer/Persistenz: keine explizite Dauer") === 0)
+                    continue
+
+                if (t === "Umleitung: nein")
+                    continue
+
+                if (t.indexOf("Ort (LTN 1):") === 0) {
+                    let value = t.substring("Ort (LTN 1):".length).trim()
+                    const pipe = value.indexOf("|")
+                    if (pipe >= 0)
+                        value = value.substring(0, pipe).trim()
+
+                    if (value.length > 0)
+                        out.push("Straße/Ort: " + value)
+
+                    continue
+                }
+
+                if (t.indexOf("Start:") === 0 || t.indexOf("Ende :") === 0) {
+                    const label = t.indexOf("Start:") === 0 ? "Start: " : "Ende: "
+                    let value = t.substring(t.indexOf(":") + 1).trim()
+                    const pipe = value.indexOf("|")
+
+                    if (pipe >= 0)
+                        value = value.substring(0, pipe).trim()
+
+                    if (value.length > 0 && value.indexOf(" ") >= 0)
+                        out.push(label + value)
+
+                    continue
+                }
+
+                if (t.indexOf("Abschnitt:") === 0) {
+                    if (sectionStartName.length > 0
+                            && sectionEndName.length > 0) {
+                        out.push("Abschnitt: "
+                                 + sectionStartName
+                                 + " → "
+                                 + sectionEndName)
+                    } else {
+                        t = t.replace(
+                            /\s+\((positive|negative) LCL-Richtung\)$/,
+                            "")
+                        out.push(t)
+                    }
+                    continue
+                }
+
+                if (t.indexOf("- Zusatzereignis:") === 0) {
+                    let value =
+                        t.substring("- Zusatzereignis:".length).trim()
+                    value = value.replace(/^\d+\s*-\s*/, "")
+                    out.push("Zusätzlich: " + value)
+                    continue
+                }
+
+                if (t.indexOf("- Zusatzinformation:") === 0) {
+                    let value =
+                        t.substring("- Zusatzinformation:".length).trim()
+                    value = value.replace(/\s*\(Code \d+\)$/, "")
+
+                    if (value === "eine Umleitung ist eingerichtet"
+                            || value === "Umleitung ist eingerichtet") {
+                        detourEstablished = true
+                    } else {
+                        out.push("Hinweis: " + value)
+                    }
+                    continue
+                }
+
+                if (t.indexOf("- Steuerung: Umleitung empfohlen/vorhanden") === 0) {
+                    detourRecommended = true
+                    continue
+                }
+
+                if (t.indexOf("- Dauer/Persistenz:") === 0) {
+                    const value =
+                        t.substring("- Dauer/Persistenz:".length).trim()
+
+                    if (value.indexOf("Typ L") >= 0) {
+                        out.push("Dauer: länger andauernd")
+                    } else if (value.indexOf("Typ D") >= 0) {
+                        out.push("Dauer: dynamisch")
+                    } else {
+                        out.push("Dauer: " + value)
+                    }
+                    continue
+                }
+
+                out.push(t)
+            }
+
+            if (detourEstablished && detourRecommended) {
+                out.push("Umleitung: eingerichtet / empfohlen")
+            } else if (detourEstablished) {
+                out.push("Umleitung: eingerichtet")
+            } else if (detourRecommended) {
+                out.push("Umleitung: empfohlen/vorhanden")
+            }
+
+            return out.join("\n")
+        }
+
+        function compactTmcText(fullText) {
+            if (!fullText || fullText.length === 0)
+                return ""
+
+            const blocks = fullText.split(/\n\s*\n/)
+            const result = []
+
+            for (let i = 0; i < blocks.length; ++i) {
+                const compact = compactTmcMessage(blocks[i])
+                if (compact.length > 0)
+                    result.push(compact)
+            }
+
+            return result.join("\n\n")
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: 12
+            radius: 3
+            color: window.aluminiumLight
+            border.width: 1
+            border.color: "#777770"
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 16
+                spacing: 10
+
+                Label {
+                    Layout.fillWidth: true
+                    text: "TMC / ALERT-C"
+                    color: window.ink
+                    font.pixelSize: 22
+                    font.bold: true
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 1
+                    color: "#8a8a82"
+                }
+
+                GridLayout {
+                    Layout.fillWidth: true
+                    columns: 2
+                    columnSpacing: 18
+                    rowSpacing: 7
+
+                    Label { text: "Status"; color: window.mutedInk }
+                    Label {
+                        Layout.fillWidth: true
+                        text: xdrClient.tmcActive
+                              ? "TMC-Daten werden empfangen"
+                              : "Noch keine gültigen TMC-Daten empfangen"
+                        color: xdrClient.tmcActive
+                               ? "#315b37"
+                               : window.ink
+                        font.bold: xdrClient.tmcActive
+                    }
+
+                    Label { text: "Sender"; color: window.mutedInk }
+                    Label {
+                        Layout.fillWidth: true
+                        text: xdrClient.psText.length > 0
+                              ? xdrClient.psText
+                              : xdrClient.piCode
+                        color: window.ink
+                        font.bold: true
+                    }
+
+                    Label { text: "PI"; color: window.mutedInk }
+                    Label {
+                        Layout.fillWidth: true
+                        text: xdrClient.piCode
+                        color: window.ink
+                        font.family: "monospace"
+                    }
+
+                    Label { text: "LTN / SID"; color: window.mutedInk }
+                    Label {
+                        Layout.fillWidth: true
+                        text: (xdrClient.tmcLocationTableNumber >= 0
+                               ? xdrClient.tmcLocationTableNumber : "–")
+                              + " / "
+                              + (xdrClient.tmcServiceId >= 0
+                                 ? xdrClient.tmcServiceId : "–")
+                        color: window.ink
+                        font.family: "monospace"
+                    }
+
+                    Label { text: "gültige 8A-Gruppen"; color: window.mutedInk }
+                    Label {
+                        Layout.fillWidth: true
+                        text: xdrClient.tmcGroupCount
+                        color: window.ink
+                    }
+
+                    Label { text: "Single-Groups"; color: window.mutedInk }
+                    Label {
+                        Layout.fillWidth: true
+                        text: xdrClient.tmcSingleCount
+                        color: window.ink
+                        font.bold: true
+                    }
+
+                    Label { text: "Multi komplett"; color: window.mutedInk }
+                    Label {
+                        Layout.fillWidth: true
+                        text: xdrClient.tmcMultiCount
+                        color: window.ink
+                        font.bold: true
+                    }
+
+                    Label {
+                        text: "Fragmente ohne Start"
+                        color: window.mutedInk
+                        visible: xdrClient.tmcMultiOrphanCount > 0
+                    }
+                    Label {
+                        Layout.fillWidth: true
+                        text: xdrClient.tmcMultiOrphanCount
+                        color: window.ink
+                        font.bold: true
+                        visible: xdrClient.tmcMultiOrphanCount > 0
+                    }
+
+                    Label { text: "Aktuelle Meldungen"; color: window.mutedInk }
+                    Label {
+                        Layout.fillWidth: true
+                        text: xdrClient.tmcMessageCount
+                        color: window.ink
+                        font.bold: true
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 1
+                    color: "#8a8a82"
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: "Aktuelle Verkehrsmeldungen"
+                        color: window.ink
+                        font.pixelSize: 16
+                        font.bold: true
+                    }
+
+                    CheckBox {
+                        id: tmcTechnicalDetails
+                        text: "Technische Details"
+                        checked: tmcWindow.showTechnicalDetails
+                        onToggled:
+                            tmcWindow.showTechnicalDetails = checked
+                    }
+                }
+
+                ScrollView {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                    ScrollBar.vertical.policy: ScrollBar.AsNeeded
+
+                    TextArea {
+                        width: parent.width
+                        readOnly: true
+                        selectByMouse: true
+                        wrapMode: TextEdit.Wrap
+
+                        text: xdrClient.tmcMessagesText.length > 0
+                              ? (tmcWindow.showTechnicalDetails
+                                 ? xdrClient.tmcMessagesText
+                                 : tmcWindow.compactTmcText(
+                                       xdrClient.tmcMessagesText))
+                              : "Noch keine aktuelle TMC-Meldung empfangen."
+
+                        color: window.ink
+                        font.family: tmcWindow.showTechnicalDetails
+                                     ? "monospace"
+                                     : Qt.application.font.family
+                        font.pixelSize: tmcWindow.showTechnicalDetails
+                                        ? 13 : 15
+
+                        background: Rectangle {
+                            color: "#f3f3ee"
+                            border.width: 1
+                            border.color: "#aaa9a1"
+                        }
+                    }
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    visible: tmcWindow.showTechnicalDetails
+                    text: "Letzte Rohgruppe: "
+                          + (xdrClient.tmcLastRaw.length > 0
+                             ? xdrClient.tmcLastRaw
+                             : "–")
+                    color: window.mutedInk
+                    font.family: "monospace"
+                    font.pixelSize: window.smallFontSize
+                    wrapMode: Text.WrapAnywhere
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: tmcWindow.showTechnicalDetails
+                          ? "Detailansicht: vollständige ALERT-C-/LCL-Decoderinformationen. "
+                            + "Storno-Meldungen entfernen die betroffene Meldung sofort; nicht mehr wiederholte "
+                            + "Meldungen verschwinden nach 15 Minuten."
+                          : "Kompaktansicht: technische Decoderwerte werden ausgeblendet. "
+                            + "Mit „Technische Details“ kann die vollständige Ausgabe "
+                            + "jederzeit eingeblendet werden."
+                    // XDRTABLET_TMC_ECL_LCL_V1
+                    // XDRTABLET_TMC_MULTI_V1
+                    // XDRTABLET_TMC_ACTIVE_MESSAGES_V1
+                    // XDRTABLET_TMC_CLEAN_VIEW_V1
+                    // XDRTABLET_TMC_ECL_CORRECTIONS_V1
+                    // XDRTABLET_TMC_DISPLAY_POLISH_V1
+                    // XDRTABLET_TMC_SECTION_NAMES_V1
+                    color: window.mutedInk
+                    font.pixelSize: window.smallFontSize
+                    wrapMode: Text.WordWrap
+                }
+            }
+        }
+    }
+
 
     // Zustand des POWER-Schalters in der Oberfläche. Das xdrd-Protokoll
     // bleibt unverändert: ON verbindet, OFF trennt die TCP-Verbindung.
@@ -104,6 +1220,13 @@ visible: true
     }
 
     function refreshUsbPorts() {
+        // Unter Android wird USB in XdrTablet nicht angeboten.
+        if (Qt.platform.os === "android") {
+            usbPortBox.model = []
+            usbPortBox.currentIndex = -1
+            return
+        }
+
         const ports = xdrClient.availableSerialPorts()
 
         usbPortBox.model = ports
@@ -128,7 +1251,8 @@ visible: true
         } else {
             powerEnabled = true
             if (!xdrClient.connected) {
-                if (connectionTypeBox.currentIndex === 1) {
+                if (Qt.platform.os !== "android"
+                        && connectionTypeBox.currentIndex === 1) {
                     xdrClient.connectToUsb(
                                 usbPortBox.currentText,
                                 Number(usbBaudField.text))
@@ -346,7 +1470,9 @@ visible: true
                     ComboBox {
                         id: connectionTypeBox
                         Layout.fillWidth: true
-                        model: ["TCP", "USB"]
+                        model: Qt.platform.os === "android"
+                               ? ["TCP"]
+                               : ["TCP", "USB"]
                         enabled: !xdrClient.connected
                     }
 
@@ -382,18 +1508,22 @@ visible: true
                         text: ""
                         placeholderText: "leer möglich"
                         echoMode: TextInput.Password
-                        passwordCharacter: "●"
+                        passwordCharacter: "*"
                     }
 
                     Label {
                         text: "USB-Anschluss"
                         color: window.ink
-                        enabled: connectionTypeBox.currentIndex === 1
+                        visible: Qt.platform.os !== "android"
+                        enabled: visible
+                                 && connectionTypeBox.currentIndex === 1
                     }
                     ComboBox {
                         id: usbPortBox
                         Layout.fillWidth: true
-                        enabled: connectionTypeBox.currentIndex === 1
+                        visible: Qt.platform.os !== "android"
+                        enabled: visible
+                                 && connectionTypeBox.currentIndex === 1
                                  && count > 0
                         model: []
 
@@ -409,14 +1539,18 @@ visible: true
                     Label {
                         text: "USB-Baudrate"
                         color: window.ink
-                        enabled: connectionTypeBox.currentIndex === 1
+                        visible: Qt.platform.os !== "android"
+                        enabled: visible
+                                 && connectionTypeBox.currentIndex === 1
                     }
                     TextField {
                         id: usbBaudField
                         Layout.fillWidth: true
+                        visible: Qt.platform.os !== "android"
                         text: "115200"
                         inputMethodHints: Qt.ImhDigitsOnly
-                        enabled: connectionTypeBox.currentIndex === 1
+                        enabled: visible
+                                 && connectionTypeBox.currentIndex === 1
                     }
                 }
 
@@ -922,7 +2056,9 @@ visible: true
                                                 anchors.fill: parent
                                                 cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
-                                                    // Aktion für RDS-LED später ergänzen
+                                                    rdsInfoWindow.visible = true
+                                                    rdsInfoWindow.raise()
+                                                    rdsInfoWindow.requestActivate()
                                                 }
                                             }
                                         }
@@ -986,23 +2122,25 @@ visible: true
                                             height: 13
                                             radius: 6.5
                                             antialiasing: true
-                                            color: "#51483f"
+                                            color: xdrClient.tmcActive ? "#3f9b55" : "#51483f"
                                             border.width: 1
-                                            border.color: "#77716b"
+                                            border.color: xdrClient.tmcActive ? "#286837" : "#77716b"
 
                                             MouseArea {
                                                 id: thirdLedButton
                                                 anchors.fill: parent
                                                 cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
-                                                    // Aktion für dritte LED später ergänzen
+                                                    tmcWindow.visible = true
+                                                    tmcWindow.raise()
+                                                    tmcWindow.requestActivate()
                                                 }
                                             }
                                         }
 
                                         Label {
-                                            text: "—"
-                                            color: window.mutedInk
+                                            text: "TMC"
+                                            color: xdrClient.tmcActive ? window.ink : window.mutedInk
                                             font.pixelSize: 9
                                             font.bold: true
                                             Layout.fillWidth: true
@@ -1535,6 +2673,29 @@ visible: true
                                 font.family: "monospace"
                                 font.bold: true
                             }
+
+                            Label { text: "ECC"; color: "#85857b" }
+                            Label {
+                                Layout.fillWidth: true
+                                text: xdrClient.eccCode !== "--"
+                                      ? xdrClient.eccCode
+                                      : "–"
+                                color: "#ded8b5"
+                                font.family: "monospace"
+                                font.bold: true
+                            }
+
+                            Label { text: "PIN"; color: "#85857b" }
+                            Label {
+                                Layout.fillWidth: true
+                                text: xdrClient.pinText.length > 0
+                                      ? xdrClient.pinText
+                                      : "–"
+                                color: "#ded8b5"
+                                font.family: "monospace"
+                                font.bold: true
+                            }
+
                             Label { text: "PTY"; color: "#85857b" }
                             Label {
                                 Layout.fillWidth: true
