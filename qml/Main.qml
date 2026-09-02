@@ -51,30 +51,22 @@ visible: true
         compactLayout ? 24 : 27
 
     // Desktop: immer die volle nutzbare Bildschirmbreite.
-    // Android behält seine normale Fenstergröße.
-    // Rechner: volle Bildschirmbreite, 620 Pixel Höhe.
-    // Android-Tablet: vollständige Bildschirmgröße.
-    x: Qt.platform.os === "android" ? 0 : Screen.virtualX
+    x: Screen.virtualX
 
     width: Screen.width > 0
            ? Screen.width
            : 1920
 
-    height: Qt.platform.os === "android"
-            ? Screen.height
-            : 690
+    height: 690
 
-    minimumWidth: Qt.platform.os === "android" ? 0 : 360
-    minimumHeight: Qt.platform.os === "android" ? 0 : 300
+    minimumWidth: 360
+    minimumHeight: 300
     title: "XDR CT-610"
 
     Component.onCompleted: {
         xdrClient.setRdsErrorCorrectionEnabled(
             appSettings.rdsErrorCorrectionEnabled)
 
-        // Android verwendet ausschließlich TCP.
-        if (Qt.platform.os === "android")
-            connectionTypeBox.currentIndex = 0
     }
 
     property color aluminiumLight: "#eeeeea"
@@ -1236,13 +1228,6 @@ visible: true
     }
 
     function refreshUsbPorts() {
-        // Unter Android wird USB in XdrTablet nicht angeboten.
-        if (Qt.platform.os === "android") {
-            usbPortBox.model = []
-            usbPortBox.currentIndex = -1
-            return
-        }
-
         const ports = xdrClient.availableSerialPorts()
 
         usbPortBox.model = ports
@@ -1267,8 +1252,7 @@ visible: true
         } else {
             powerEnabled = true
             if (!xdrClient.connected) {
-                if (Qt.platform.os !== "android"
-                        && connectionTypeBox.currentIndex === 1) {
+                if (connectionTypeBox.currentIndex === 1) {
                     xdrClient.connectToUsb(
                                 usbPortBox.currentText,
                                 Number(usbBaudField.text))
@@ -1486,9 +1470,7 @@ visible: true
                     ComboBox {
                         id: connectionTypeBox
                         Layout.fillWidth: true
-                        model: Qt.platform.os === "android"
-                               ? ["TCP"]
-                               : ["TCP", "USB"]
+                        model: ["TCP", "USB"]
                         enabled: !xdrClient.connected
                     }
 
@@ -1530,15 +1512,13 @@ visible: true
                     Label {
                         text: "USB-Anschluss"
                         color: window.ink
-                        visible: Qt.platform.os !== "android"
-                        enabled: visible
+                                        enabled: visible
                                  && connectionTypeBox.currentIndex === 1
                     }
                     ComboBox {
                         id: usbPortBox
                         Layout.fillWidth: true
-                        visible: Qt.platform.os !== "android"
-                        enabled: visible
+                                        enabled: visible
                                  && connectionTypeBox.currentIndex === 1
                                  && count > 0
                         model: []
@@ -1555,15 +1535,13 @@ visible: true
                     Label {
                         text: "USB-Baudrate"
                         color: window.ink
-                        visible: Qt.platform.os !== "android"
-                        enabled: visible
+                                        enabled: visible
                                  && connectionTypeBox.currentIndex === 1
                     }
                     TextField {
                         id: usbBaudField
                         Layout.fillWidth: true
-                        visible: Qt.platform.os !== "android"
-                        text: "115200"
+                                        text: "115200"
                         inputMethodHints: Qt.ImhDigitsOnly
                         enabled: visible
                                  && connectionTypeBox.currentIndex === 1
@@ -1845,14 +1823,10 @@ visible: true
 
             width: mainScroll.availableWidth
             implicitHeight: faceColumn.implicitHeight + 2 * window.panelMargin
-            // PC bleibt wie bisher auf Fensterhöhe.
-            // Android endet direkt nach dem tatsächlichen Inhalt.
-            height: Qt.platform.os === "android"
-                    ? implicitHeight
-                    : Math.max(
-                          implicitHeight,
-                          window.height - 2 * window.outerMargin
-                      )
+            height: Math.max(
+                        implicitHeight,
+                        window.height - 2 * window.outerMargin
+                    )
             radius: 3
             border.width: 1
             border.color: "#70706a"
@@ -1982,7 +1956,7 @@ visible: true
                     border.width: false ? 3 : 5
 
                     // Ein gemeinsamer Skalenrahmen. Die LED-Gruppe liegt
-                    // auf Desktop und Android-Tablet rechts innerhalb des Rahmens.
+                    // rechts innerhalb des Rahmens.
                     Rectangle {
                         anchors.fill: parent
                         anchors.margins: false ? 7 : 12
@@ -2467,9 +2441,7 @@ visible: true
                             Layout.fillWidth: true
                             Layout.alignment: Qt.AlignHCenter
                             horizontalAlignment: Text.AlignHCenter
-                            text: Qt.platform.os === "android"
-                                  ? "ziehen · tippen"
-                                  : "ziehen · klicken · Mausrad"
+                            text: "ziehen · klicken · Mausrad"
                             color: window.mutedInk
                             font.pixelSize: window.smallFontSize
                             wrapMode: Text.WordWrap
@@ -2788,7 +2760,6 @@ visible: true
 
     // Oben anfassen und Fenster verschieben.
     MouseArea {
-        visible: Qt.platform.os !== "android"
         x: 10
         y: 7
         width: parent.width - 20
@@ -2803,7 +2774,6 @@ visible: true
 
     // Linke Kante
     MouseArea {
-        visible: Qt.platform.os !== "android"
         anchors.left: parent.left
         anchors.top: parent.top
         anchors.bottom: parent.bottom
@@ -2815,7 +2785,6 @@ visible: true
 
     // Rechte Kante
     MouseArea {
-        visible: Qt.platform.os !== "android"
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.bottom: parent.bottom
@@ -2827,7 +2796,6 @@ visible: true
 
     // Obere Kante
     MouseArea {
-        visible: Qt.platform.os !== "android"
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
@@ -2839,7 +2807,6 @@ visible: true
 
     // Untere Kante
     MouseArea {
-        visible: Qt.platform.os !== "android"
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
@@ -2851,7 +2818,6 @@ visible: true
 
     // Linke obere Ecke
     MouseArea {
-        visible: Qt.platform.os !== "android"
         anchors.left: parent.left
         anchors.top: parent.top
         width: 12
@@ -2864,7 +2830,6 @@ visible: true
 
     // Rechte obere Ecke
     MouseArea {
-        visible: Qt.platform.os !== "android"
         anchors.right: parent.right
         anchors.top: parent.top
         width: 12
@@ -2877,7 +2842,6 @@ visible: true
 
     // Linke untere Ecke
     MouseArea {
-        visible: Qt.platform.os !== "android"
         anchors.left: parent.left
         anchors.bottom: parent.bottom
         width: 12
@@ -2890,7 +2854,6 @@ visible: true
 
     // Rechte untere Ecke
     MouseArea {
-        visible: Qt.platform.os !== "android"
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         width: 12
