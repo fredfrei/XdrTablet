@@ -823,6 +823,8 @@ visible: true
 
             let detourEstablished = false
             let detourRecommended = false
+            let detourUnavailable = false
+            let detourNoLongerRecommended = false
             let sectionStartName = ""
             let sectionEndName = ""
 
@@ -873,7 +875,7 @@ visible: true
                         value = value.substring(0, pipe).trim()
 
                     if (value.length > 0)
-                        out.push("Straße/Ort: " + value)
+                        out.push("Straße: " + value)
 
                     continue
                 }
@@ -924,6 +926,10 @@ visible: true
                     if (value === "eine Umleitung ist eingerichtet"
                             || value === "Umleitung ist eingerichtet") {
                         detourEstablished = true
+                    } else if (value === "keine geeignete Umleitung verfügbar") {
+                        detourUnavailable = true
+                    } else if (value === "Umleitung wird nicht mehr empfohlen") {
+                        detourNoLongerRecommended = true
                     } else {
                         out.push("Hinweis: " + value)
                     }
@@ -953,12 +959,21 @@ visible: true
             }
 
             if (detourEstablished && detourRecommended) {
-                out.push("Umleitung: eingerichtet / empfohlen")
+                out.push("Umleitung: eingerichtet und empfohlen")
             } else if (detourEstablished) {
                 out.push("Umleitung: eingerichtet")
             } else if (detourRecommended) {
-                out.push("Umleitung: empfohlen/vorhanden")
+                out.push("Umleitung: empfohlen")
             }
+
+            // Diese beiden Zusatzinformationen können unabhängig von
+            // "eingerichtet/empfohlen" gesendet werden. Deshalb bleiben
+            // sie als eigene, eindeutige Zeilen sichtbar.
+            if (detourUnavailable)
+                out.push("Umleitung: keine geeignete verfügbar")
+
+            if (detourNoLongerRecommended)
+                out.push("Umleitung: nicht mehr empfohlen")
 
             return out.join("\n")
         }
@@ -1189,6 +1204,7 @@ visible: true
                     // XDRTABLET_TMC_CLEAN_VIEW_V1
                     // XDRTABLET_TMC_ECL_CORRECTIONS_V1
                     // XDRTABLET_TMC_DISPLAY_POLISH_V1
+                    // XDRTABLET_TMC_DETOUR_TEXT_V2
                     // XDRTABLET_TMC_SECTION_NAMES_V1
                     color: window.mutedInk
                     font.pixelSize: window.smallFontSize

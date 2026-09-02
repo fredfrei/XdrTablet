@@ -2393,6 +2393,7 @@ void XdrClient::processLine(const QString &line)
 
             if (changed) {
                 clearRdsData();
+                clearRdsMonitor();
                 emit frequencyChanged();
             }
 
