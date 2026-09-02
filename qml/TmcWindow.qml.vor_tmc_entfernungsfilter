@@ -30,141 +30,6 @@ Window {
     property bool showAllMessages: false
     property int filteredMessageLimit: 15
 
-    // XDRTABLET_TMC_DISTANCE_FILTER_V1
-    property bool distanceFilterEnabled: true
-
-    function distanceFilterLocation() {
-        let value = tmcLocationField.text.trim()
-        value = value.replace(";", ",")
-
-        const parts = value.split(",")
-        if (parts.length !== 2)
-            return null
-
-        const lat = Number(parts[0].trim())
-        const lon = Number(parts[1].trim())
-
-        if (!isFinite(lat) || !isFinite(lon)
-                || lat < -90 || lat > 90
-                || lon < -180 || lon > 180) {
-            return null
-        }
-
-        return { "lat": lat, "lon": lon }
-    }
-
-    function distanceFilterRadiusKm() {
-        const value = Number(
-            tmcRadiusField.text.trim().replace(",", "."))
-
-        if (!isFinite(value) || value <= 0)
-            return -1
-
-        return value
-    }
-
-    function distanceFilterValid() {
-        return distanceFilterLocation() !== null
-                && distanceFilterRadiusKm() > 0
-    }
-
-    function haversineKm(lat1, lon1, lat2, lon2) {
-        const earthRadiusKm = 6371.0088
-        const toRad = Math.PI / 180.0
-
-        const phi1 = lat1 * toRad
-        const phi2 = lat2 * toRad
-        const dPhi = (lat2 - lat1) * toRad
-        const dLambda = (lon2 - lon1) * toRad
-
-        const a = Math.sin(dPhi / 2) * Math.sin(dPhi / 2)
-                + Math.cos(phi1) * Math.cos(phi2)
-                  * Math.sin(dLambda / 2) * Math.sin(dLambda / 2)
-
-        return 2 * earthRadiusKm
-                * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-    }
-
-    function tmcBlockDistanceKm(block) {
-        const origin = distanceFilterLocation()
-        if (origin === null || !block || block.length === 0)
-            return -1
-
-        // Decoderzeilen enthalten Koordinaten hinter einem '|', z.B.
-        // "Ort (LTN 1): A5 | 48.12345,7.98765".
-        // Bei Strecken werden Ort, Start und Ende geprüft; es zählt der
-        // nächstgelegene vorhandene LCL-Punkt.
-        const rx = /\|\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/g
-        let match
-        let minimum = -1
-
-        while ((match = rx.exec(block)) !== null) {
-            const lat = Number(match[1])
-            const lon = Number(match[2])
-
-            if (!isFinite(lat) || !isFinite(lon)
-                    || lat < -90 || lat > 90
-                    || lon < -180 || lon > 180) {
-                continue
-            }
-
-            const distance = haversineKm(
-                origin.lat, origin.lon, lat, lon)
-
-            if (minimum < 0 || distance < minimum)
-                minimum = distance
-        }
-
-        return minimum
-    }
-
-    function tmcBlockInDistance(block) {
-        if (!distanceFilterEnabled)
-            return true
-
-        // Bei fehlerhafter Eingabe nicht still alles ausblenden.
-        if (!distanceFilterValid())
-            return true
-
-        const distance = tmcBlockDistanceKm(block)
-
-        // Ohne geografische LCL-Koordinate ist eine Entfernung nicht
-        // bestimmbar; bei aktivem Filter wird die Meldung ausgeblendet.
-        return distance >= 0
-                && distance <= distanceFilterRadiusKm()
-    }
-
-    function distanceFilteredTmcBlocks(fullText) {
-        const blocks = tmcMessageBlocks(fullText)
-        const result = []
-
-        for (let i = 0; i < blocks.length; ++i) {
-            if (tmcBlockInDistance(blocks[i]))
-                result.push(blocks[i])
-        }
-
-        return result
-    }
-
-    function distanceFilterStatusText() {
-        if (!distanceFilterEnabled)
-            return "Entfernungsfilter ausgeschaltet"
-
-        if (distanceFilterLocation() === null)
-            return "Standort ungültig – Format: 48.00960666741811, 7.833772430212739"
-
-        const radius = distanceFilterRadiusKm()
-        if (radius <= 0)
-            return "Umkreis ungültig – bitte Kilometer größer 0 eingeben"
-
-        const inRange = distanceFilteredTmcBlocks(
-            tmcWindow.client.tmcMessagesText).length
-
-        return inRange + " von "
-                + tmcWindow.client.tmcMessageCount
-                + " Meldungen innerhalb " + radius + " km"
-    }
-
     // XDRTABLET_TMC_SECTION_NAMES_V1
     function tmcLocationName(line) {
         if (!line || line.length === 0)
@@ -231,11 +96,6 @@ Window {
 
             if (i === 0) {
                 out.push(t)
-
-                const distance = tmcBlockDistanceKm(block)
-                if (distance >= 0)
-                    out.push("Entfernung: " + distance.toFixed(1) + " km")
-
                 continue
             }
 
@@ -442,7 +302,7 @@ Window {
     }
 
     function selectedTmcBlocks(fullText) {
-        const blocks = distanceFilteredTmcBlocks(fullText)
+        const blocks = tmcMessageBlocks(fullText)
 
         if (tmcWindow.showAllMessages)
             return blocks
@@ -602,79 +462,14 @@ Window {
                 Label { text: "Aktuelle Meldungen"; color: tmcWindow.mutedInk }
                 Label {
                     Layout.fillWidth: true
-                    text: tmcWindow.displayedTmcMessageCount(
-                              tmcWindow.client.tmcMessagesText)
-                          + " von "
-                          + tmcWindow.client.tmcMessageCount
+                    text: tmcWindow.showAllMessages
+                          ? tmcWindow.client.tmcMessageCount
+                          : tmcWindow.displayedTmcMessageCount(
+                                tmcWindow.client.tmcMessagesText)
+                            + " von "
+                            + tmcWindow.client.tmcMessageCount
                     color: tmcWindow.ink
                     font.bold: true
-                }
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                height: 1
-                color: "#8a8a82"
-            }
-
-            GridLayout {
-                Layout.fillWidth: true
-                columns: 4
-                columnSpacing: 10
-                rowSpacing: 6
-
-                Label {
-                    text: "Standort"
-                    color: tmcWindow.mutedInk
-                }
-
-                TextField {
-                    id: tmcLocationField
-                    Layout.columnSpan: 3
-                    Layout.fillWidth: true
-                    text: "48.00960666741811, 7.833772430212739"
-                    placeholderText: "Breitengrad, Längengrad"
-                    selectByMouse: true
-                    font.family: "monospace"
-                }
-
-                Label {
-                    text: "Umkreis"
-                    color: tmcWindow.mutedInk
-                }
-
-                TextField {
-                    id: tmcRadiusField
-                    Layout.preferredWidth: 90
-                    text: "100"
-                    placeholderText: "100"
-                    selectByMouse: true
-                    horizontalAlignment: TextInput.AlignRight
-                }
-
-                Label {
-                    text: "km"
-                    color: tmcWindow.ink
-                }
-
-                CheckBox {
-                    id: tmcDistanceFilterCheck
-                    text: "Filter aktiv"
-                    checked: tmcWindow.distanceFilterEnabled
-                    onToggled:
-                        tmcWindow.distanceFilterEnabled = checked
-                }
-
-                Label {
-                    Layout.columnSpan: 4
-                    Layout.fillWidth: true
-                    text: tmcWindow.distanceFilterStatusText()
-                    color: tmcWindow.distanceFilterEnabled
-                           && !tmcWindow.distanceFilterValid()
-                           ? "#9a3d32"
-                           : tmcWindow.mutedInk
-                    font.pixelSize: tmcWindow.smallFontSize
-                    wrapMode: Text.WordWrap
                 }
             }
 
@@ -735,15 +530,9 @@ Window {
                         if (filtered.length > 0)
                             return filtered
 
-                        if (tmcWindow.distanceFilterEnabled
-                                && tmcWindow.distanceFilterValid()
-                                && tmcWindow.distanceFilteredTmcBlocks(fullText).length === 0) {
-                            return "Keine aktuelle TMC-Meldung im eingestellten Umkreis."
-                        }
-
                         return "Keine wichtigen Verkehrsmeldungen im Filter. "
-                               + "Mit „Alle Meldungen“ werden alle Meldungen "
-                               + "innerhalb des eingestellten Umkreises angezeigt."
+                               + "Mit „Alle Meldungen“ kann die vollständige "
+                               + "Liste eingeblendet werden."
                     }
 
                     color: tmcWindow.ink
@@ -783,16 +572,14 @@ Window {
                       : (tmcWindow.showAllMessages
                          ? "Kompaktansicht: Alle aktuellen Meldungen werden angezeigt; "
                            + "technische Decoderwerte bleiben ausgeblendet."
-                         : "Gefilterte Ansicht: höchstens 15 Meldungen innerhalb des eingestellten Umkreises, "
-                           + "wichtige Ereignisse zuerst. Reine Baustellenmeldungen ohne Sperrung oder "
-                           + "Behinderung werden ausgeblendet.")
+                         : "Gefilterte Ansicht: höchstens 15 Meldungen, wichtige Ereignisse zuerst. "
+                           + "Reine Baustellenmeldungen ohne Sperrung oder Behinderung werden ausgeblendet.")
                 // XDRTABLET_TMC_ECL_LCL_V1
                 // XDRTABLET_TMC_MULTI_V1
                 // XDRTABLET_TMC_ACTIVE_MESSAGES_V1
                 // XDRTABLET_TMC_CLEAN_VIEW_V1
                 // XDRTABLET_TMC_ECL_CORRECTIONS_V1
                 // XDRTABLET_TMC_DISPLAY_POLISH_V1
-                // XDRTABLET_TMC_DISTANCE_FILTER_V1
                 // XDRTABLET_TMC_DETOUR_TEXT_V2
                 // XDRTABLET_TMC_SECTION_NAMES_V1
                 color: tmcWindow.mutedInk
