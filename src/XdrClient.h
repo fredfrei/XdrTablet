@@ -283,6 +283,7 @@ private:
     QTimer authenticationTimer_;
     QTimer seekEvaluationTimer_;
     QTimer rdsTimeoutTimer_;
+    QTimer tmcActivityTimer_;
     QTimer tmcCleanupTimer_;
 
     QByteArray buffer_;

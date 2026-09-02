@@ -27,6 +27,8 @@ Window {
 
     // XDRTABLET_TMC_CLEAN_VIEW_V1
     property bool showTechnicalDetails: false
+    property bool showAllMessages: false
+    property int filteredMessageLimit: 15
 
     // XDRTABLET_TMC_SECTION_NAMES_V1
     function tmcLocationName(line) {
@@ -241,6 +243,109 @@ Window {
         return result.join("\n\n")
     }
 
+    function tmcMessageBlocks(fullText) {
+        if (!fullText || fullText.length === 0)
+            return []
+
+        const sourceBlocks = fullText.split(/\n\s*\n/)
+        const blocks = []
+
+        for (let i = 0; i < sourceBlocks.length; ++i) {
+            const block = sourceBlocks[i].trim()
+            if (block.length > 0)
+                blocks.push(block)
+        }
+
+        return blocks
+    }
+
+    function textContainsAny(text, terms) {
+        const probe = text.toLowerCase()
+
+        for (let i = 0; i < terms.length; ++i) {
+            if (probe.indexOf(terms[i]) >= 0)
+                return true
+        }
+
+        return false
+    }
+
+    function isImportantTmcMessage(compactText) {
+        return textContainsAny(compactText, [
+            "unfall",
+            "stau",
+            "gefahr",
+            "gesperrt",
+            "sperrung",
+            "defekt",
+            "zeitverlust",
+            "verkehrsbehinderung",
+            "verengt",
+            "umleitung",
+            "gegenstände auf der fahrbahn",
+            "fahrstreifen"
+        ])
+    }
+
+    function isRoutineRoadwork(compactText) {
+        const isRoadwork = textContainsAny(compactText, [
+            "baustelle",
+            "bauarbeiten",
+            "dauerbaustelle",
+            "fahrbahnerneuerung",
+            "brückenarbeiten",
+            "wartungsarbeiten",
+            "straßenarbeiten"
+        ])
+
+        return isRoadwork && !isImportantTmcMessage(compactText)
+    }
+
+    function selectedTmcBlocks(fullText) {
+        const blocks = tmcMessageBlocks(fullText)
+
+        if (tmcWindow.showAllMessages)
+            return blocks
+
+        const important = []
+        const normal = []
+
+        for (let i = 0; i < blocks.length; ++i) {
+            const compact = compactTmcMessage(blocks[i])
+
+            if (isRoutineRoadwork(compact))
+                continue
+
+            if (isImportantTmcMessage(compact))
+                important.push(blocks[i])
+            else
+                normal.push(blocks[i])
+        }
+
+        return important.concat(normal).slice(
+                    0, tmcWindow.filteredMessageLimit)
+    }
+
+    function filteredTmcText(fullText) {
+        const blocks = selectedTmcBlocks(fullText)
+        const result = []
+
+        for (let i = 0; i < blocks.length; ++i) {
+            const text = tmcWindow.showTechnicalDetails
+                         ? blocks[i]
+                         : compactTmcMessage(blocks[i])
+
+            if (text.length > 0)
+                result.push(text)
+        }
+
+        return result.join("\n\n")
+    }
+
+    function displayedTmcMessageCount(fullText) {
+        return selectedTmcBlocks(fullText).length
+    }
+
     Rectangle {
         anchors.fill: parent
         anchors.margins: 12
@@ -279,7 +384,9 @@ Window {
                     Layout.fillWidth: true
                     text: tmcWindow.client.tmcActive
                           ? "TMC-Daten werden empfangen"
-                          : "Noch keine gültigen TMC-Daten empfangen"
+                          : (tmcWindow.client.tmcGroupCount > 0
+                             ? "Zurzeit keine TMC-Daten empfangen"
+                             : "Noch keine gültigen TMC-Daten empfangen")
                     color: tmcWindow.client.tmcActive
                            ? "#315b37"
                            : tmcWindow.ink
@@ -355,7 +462,12 @@ Window {
                 Label { text: "Aktuelle Meldungen"; color: tmcWindow.mutedInk }
                 Label {
                     Layout.fillWidth: true
-                    text: tmcWindow.client.tmcMessageCount
+                    text: tmcWindow.showAllMessages
+                          ? tmcWindow.client.tmcMessageCount
+                          : tmcWindow.displayedTmcMessageCount(
+                                tmcWindow.client.tmcMessagesText)
+                            + " von "
+                            + tmcWindow.client.tmcMessageCount
                     color: tmcWindow.ink
                     font.bold: true
                 }
@@ -380,6 +492,12 @@ Window {
                 }
 
                 CheckBox {
+                    text: "Alle Meldungen"
+                    checked: tmcWindow.showAllMessages
+                    onToggled: tmcWindow.showAllMessages = checked
+                }
+
+                CheckBox {
                     id: tmcTechnicalDetails
                     text: "Technische Details"
                     checked: tmcWindow.showTechnicalDetails
@@ -401,12 +519,21 @@ Window {
                     selectByMouse: true
                     wrapMode: TextEdit.Wrap
 
-                    text: tmcWindow.client.tmcMessagesText.length > 0
-                          ? (tmcWindow.showTechnicalDetails
-                             ? tmcWindow.client.tmcMessagesText
-                             : tmcWindow.compactTmcText(
-                                   tmcWindow.client.tmcMessagesText))
-                          : "Noch keine aktuelle TMC-Meldung empfangen."
+                    text: {
+                        const fullText = tmcWindow.client.tmcMessagesText
+
+                        if (fullText.length === 0)
+                            return "Noch keine aktuelle TMC-Meldung empfangen."
+
+                        const filtered = tmcWindow.filteredTmcText(fullText)
+
+                        if (filtered.length > 0)
+                            return filtered
+
+                        return "Keine wichtigen Verkehrsmeldungen im Filter. "
+                               + "Mit „Alle Meldungen“ kann die vollständige "
+                               + "Liste eingeblendet werden."
+                    }
 
                     color: tmcWindow.ink
                     font.family: tmcWindow.showTechnicalDetails
@@ -442,9 +569,11 @@ Window {
                       ? "Detailansicht: vollständige ALERT-C-/LCL-Decoderinformationen. "
                         + "Storno-Meldungen entfernen die betroffene Meldung sofort; nicht mehr wiederholte "
                         + "Meldungen verschwinden nach 15 Minuten."
-                      : "Kompaktansicht: technische Decoderwerte werden ausgeblendet. "
-                        + "Mit „Technische Details“ kann die vollständige Ausgabe "
-                        + "jederzeit eingeblendet werden."
+                      : (tmcWindow.showAllMessages
+                         ? "Kompaktansicht: Alle aktuellen Meldungen werden angezeigt; "
+                           + "technische Decoderwerte bleiben ausgeblendet."
+                         : "Gefilterte Ansicht: höchstens 15 Meldungen, wichtige Ereignisse zuerst. "
+                           + "Reine Baustellenmeldungen ohne Sperrung oder Behinderung werden ausgeblendet.")
                 // XDRTABLET_TMC_ECL_LCL_V1
                 // XDRTABLET_TMC_MULTI_V1
                 // XDRTABLET_TMC_ACTIVE_MESSAGES_V1

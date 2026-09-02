@@ -32,6 +32,7 @@ constexpr qsizetype XdrSaltLength = 16;
 constexpr int MinimumFmFrequencyKhz = 87500;
 constexpr int MaximumFmFrequencyKhz = 108000;
 constexpr int RdsTimeoutMs = 2600;
+constexpr int TmcActivityTimeoutMs = 10 * 1000;
 // XDRTABLET_TMC_ACTIVE_MESSAGES_V1
 constexpr qint64 TmcMessageStaleMs = 15LL * 60LL * 1000LL;
 constexpr int TmcCleanupIntervalMs = 60 * 1000;
@@ -817,6 +818,9 @@ XdrClient::XdrClient(QObject *parent) : QObject(parent)
     rdsTimeoutTimer_.setSingleShot(true);
     rdsTimeoutTimer_.setInterval(RdsTimeoutMs);
 
+    tmcActivityTimer_.setSingleShot(true);
+    tmcActivityTimer_.setInterval(TmcActivityTimeoutMs);
+
     tmcCleanupTimer_.setInterval(TmcCleanupIntervalMs);
 
     connect(&socket_, &QTcpSocket::connected, this, &XdrClient::onConnected);
@@ -837,6 +841,14 @@ XdrClient::XdrClient(QObject *parent) : QObject(parent)
             this, &XdrClient::evaluateSeekStep);
     connect(&rdsTimeoutTimer_, &QTimer::timeout,
             this, &XdrClient::onRdsTimeout);
+    connect(&tmcActivityTimer_, &QTimer::timeout,
+            this, [this]() {
+                if (!tmcActive_)
+                    return;
+
+                tmcActive_ = false;
+                emit tmcChanged();
+            });
     connect(&tmcCleanupTimer_, &QTimer::timeout,
             this, &XdrClient::pruneStaleTmcMessages);
     tmcCleanupTimer_.start();
@@ -3095,6 +3107,7 @@ void XdrClient::updateEpgFromXml()
 void XdrClient::clearRdsData()
 {
     rdsTimeoutTimer_.stop();
+    tmcActivityTimer_.stop();
     const bool hadData = rdsActive_ || rdsPi_ >= 0 || !psText_.isEmpty() ||
                          !radioText_.isEmpty() || ptyCode_ >= 0 ||
                          !rtPlusTitle_.isEmpty() || !rtPlusArtist_.isEmpty() ||
@@ -4085,6 +4098,7 @@ void XdrClient::processRdsGroup(quint16 blockA, quint16 blockB,
 
     if (validTmc8A) {
         tmcActive_ = true;
+        tmcActivityTimer_.start();
         ++tmcGroupCount_;
 
         tmcLastRaw_ =
