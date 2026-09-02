@@ -29,6 +29,7 @@ qt_add_qml_module(XdrTablet
     VERSION 1.0
     QML_FILES
         qml/Main.qml
+        qml/SettingsDrawer.qml
         qml/RdsMonitorWindow.qml
         qml/TmcWindow.qml
         qml/FrequencyScale.qml

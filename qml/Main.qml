@@ -2,7 +2,6 @@ import QtQuick
 import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtCore
 
 ApplicationWindow {
     id: window
@@ -63,12 +62,6 @@ visible: true
     minimumHeight: 300
     title: "XDR CT-610"
 
-    Component.onCompleted: {
-        xdrClient.setRdsErrorCorrectionEnabled(
-            appSettings.rdsErrorCorrectionEnabled)
-
-    }
-
     property color aluminiumLight: "#eeeeea"
     property color aluminiumMid: "#c9c9c3"
     property color aluminiumDark: "#9e9e98"
@@ -103,42 +96,28 @@ visible: true
         smallFontSize: window.smallFontSize
     }
 
+    SettingsDrawer {
+        id: settingsDrawer
+
+        client: xdrClient
+        hostWindowWidth: window.width
+        hostWindowHeight: window.height
+
+        ink: window.ink
+        mutedInk: window.mutedInk
+        sectionSpacing: window.sectionSpacing
+        smallFontSize: window.smallFontSize
+
+        onConnectionToggleRequested: window.connectOrDisconnect()
+    }
+
 
     // Zustand des POWER-Schalters in der Oberfläche. Das xdrd-Protokoll
     // bleibt unverändert: ON verbindet, OFF trennt die TCP-Verbindung.
     property bool powerEnabled: false
 
-    property var bandwidthValues: [0, 56000, 64000, 72000, 84000, 97000,
-                                   114000, 133000, 151000, 168000, 184000,
-                                   200000, 217000, 236000, 254000, 287000,
-                                   311000]
-    property var smallStepValues: [50, 100, 200]
-    property var largeStepValues: [500, 1000, 2000]
-
-    function valueIndex(values, value) {
-        const index = values.indexOf(value)
-        return index >= 0 ? index : 0
-    }
-
     function bandwidthLabel(hz) {
         return hz > 0 ? Math.round(hz / 1000) + " kHz" : "Auto"
-    }
-
-    function refreshUsbPorts() {
-        const ports = xdrClient.availableSerialPorts()
-
-        usbPortBox.model = ports
-
-        if (ports.length === 0) {
-            usbPortBox.currentIndex = -1
-            return
-        }
-
-        const wanted = appSettings.usbPort
-        const index = ports.indexOf(wanted)
-
-        usbPortBox.currentIndex = index >= 0 ? index : 0
-        appSettings.usbPort = usbPortBox.currentText
     }
 
     function connectOrDisconnect() {
@@ -149,15 +128,15 @@ visible: true
         } else {
             powerEnabled = true
             if (!xdrClient.connected) {
-                if (connectionTypeBox.currentIndex === 1) {
+                if (settingsDrawer.connectionType === 1) {
                     xdrClient.connectToUsb(
-                                usbPortBox.currentText,
-                                Number(usbBaudField.text))
+                                settingsDrawer.usbPort,
+                                settingsDrawer.usbBaudRate)
                 } else {
                     xdrClient.connectToServer(
-                                hostField.text,
-                                Number(portField.text),
-                                passwordField.text)
+                                settingsDrawer.tcpHost,
+                                settingsDrawer.tcpPort,
+                                settingsDrawer.password)
                 }
             }
         }
@@ -168,71 +147,6 @@ visible: true
         if (xdrClient.connected)
             xdrClient.disconnectFromServer()
         Qt.quit()
-    }
-
-
-    readonly property var stationPresetFrequencies: [
-        appSettings.preset1Khz,
-        appSettings.preset2Khz,
-        appSettings.preset3Khz,
-        appSettings.preset4Khz,
-        appSettings.preset5Khz,
-        appSettings.preset6Khz
-    ]
-
-    function presetFrequency(index) {
-        switch (index) {
-        case 0: return appSettings.preset1Khz
-        case 1: return appSettings.preset2Khz
-        case 2: return appSettings.preset3Khz
-        case 3: return appSettings.preset4Khz
-        case 4: return appSettings.preset5Khz
-        case 5: return appSettings.preset6Khz
-        default: return 0
-        }
-    }
-
-    function setPresetFrequency(index, frequencyKhz) {
-        switch (index) {
-        case 0: appSettings.preset1Khz = frequencyKhz; break
-        case 1: appSettings.preset2Khz = frequencyKhz; break
-        case 2: appSettings.preset3Khz = frequencyKhz; break
-        case 3: appSettings.preset4Khz = frequencyKhz; break
-        case 4: appSettings.preset5Khz = frequencyKhz; break
-        case 5: appSettings.preset6Khz = frequencyKhz; break
-        }
-    }
-
-    function storePreset(index) {
-        const frequencyKhz = xdrClient.frequencyKhz
-
-        if (frequencyKhz < xdrClient.minimumFmFrequencyKhz
-                || frequencyKhz > xdrClient.maximumFmFrequencyKhz) {
-            return
-        }
-
-        setPresetFrequency(index, frequencyKhz)
-    }
-
-    function clearPreset(index) {
-        setPresetFrequency(index, 0)
-    }
-
-    function recallPreset(index) {
-        const frequencyKhz = presetFrequency(index)
-
-        if (frequencyKhz > 0
-                && xdrClient.ready
-                && !xdrClient.seeking) {
-            xdrClient.setFrequencyKhz(frequencyKhz)
-        }
-    }
-
-    function presetFrequencyText(index) {
-        const frequencyKhz = presetFrequency(index)
-        return frequencyKhz > 0
-               ? (frequencyKhz / 1000).toFixed(3) + " MHz"
-               : "–"
     }
 
     function qualityValue() {
@@ -250,27 +164,6 @@ visible: true
 
         return Math.round(
                     Math.max(0, Math.min(100, 100 - disturbance)))
-    }
-
-    Settings {
-        id: appSettings
-
-        property int preset1Khz: 0
-        property int preset2Khz: 0
-        property int preset3Khz: 0
-        property int preset4Khz: 0
-        property int preset5Khz: 0
-        property int preset6Khz: 0
-
-        property alias host: hostField.text
-        property alias port: portField.text
-        property alias connectionType: connectionTypeBox.currentIndex
-        property string usbPort: "/dev/ttyUSB0"
-        property alias usbBaud: usbBaudField.text
-
-        // false = nur TEF-Fehlerstatus 0 verwenden
-        // true  = auch korrigierte RDS-Blöcke 1 und 2 verwenden
-        property bool rdsErrorCorrectionEnabled: false
     }
 
     Shortcut {
@@ -311,397 +204,6 @@ visible: true
         }
     }
 
-    Drawer {
-        id: settingsDrawer
-        edge: Qt.RightEdge
-        width: false
-               ? window.width
-               : Math.min(window.width * 0.44, 520)
-        height: window.height
-        modal: true
-
-        onOpened: window.refreshUsbPorts()
-
-        background: Rectangle {
-            color: "#deded8"
-            border.color: "#777770"
-        }
-
-        ScrollView {
-            anchors.fill: parent
-            contentWidth: availableWidth
-            clip: true
-
-            ColumnLayout {
-                width: parent.width
-                spacing: window.sectionSpacing
-
-                Label {
-                    Layout.fillWidth: true
-                    Layout.leftMargin: false ? 14 : 20
-                    Layout.rightMargin: false ? 14 : 20
-                    Layout.topMargin: false ? 14 : 18
-                    text: "XDR · EINSTELLUNGEN"
-                    color: window.ink
-                    font.pixelSize: false ? 19 : 22
-                    font.bold: true
-                }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.leftMargin: 20
-                    Layout.rightMargin: 20
-                    height: 1
-                    color: "#888881"
-                }
-
-                GridLayout {
-                    Layout.fillWidth: true
-                    Layout.leftMargin: 20
-                    Layout.rightMargin: 20
-                    columns: false ? 1 : 2
-                    columnSpacing: 12
-                    rowSpacing: false ? 6 : 10
-
-                    Label { text: "Verbindung"; color: window.ink }
-                    ComboBox {
-                        id: connectionTypeBox
-                        Layout.fillWidth: true
-                        model: ["TCP", "USB"]
-                        enabled: !xdrClient.connected
-                    }
-
-                    Label {
-                        text: "IP-Adresse"
-                        color: window.ink
-                        enabled: connectionTypeBox.currentIndex === 0
-                    }
-                    TextField {
-                        id: hostField
-                        Layout.fillWidth: true
-                        enabled: connectionTypeBox.currentIndex === 0
-                        text: "10.193.149.131"
-                        placeholderText: "IP-Adresse"
-                        inputMethodHints: Qt.ImhUrlCharactersOnly
-                    }
-
-                    Label { text: "TCP-Port"; color: window.ink }
-                    TextField {
-                        id: portField
-                        Layout.fillWidth: true
-                        enabled: connectionTypeBox.currentIndex === 0
-                        text: "7373"
-                        placeholderText: "Port"
-                        inputMethodHints: Qt.ImhDigitsOnly
-                    }
-
-                    Label { text: "Passwort"; color: window.ink }
-                    TextField {
-                        id: passwordField
-                        Layout.fillWidth: true
-                        enabled: connectionTypeBox.currentIndex === 0
-                        text: ""
-                        placeholderText: "leer möglich"
-                        echoMode: TextInput.Password
-                        passwordCharacter: "*"
-                    }
-
-                    Label {
-                        text: "USB-Anschluss"
-                        color: window.ink
-                                        enabled: visible
-                                 && connectionTypeBox.currentIndex === 1
-                    }
-                    ComboBox {
-                        id: usbPortBox
-                        Layout.fillWidth: true
-                                        enabled: visible
-                                 && connectionTypeBox.currentIndex === 1
-                                 && count > 0
-                        model: []
-
-                        displayText: count > 0
-                                     ? currentText
-                                     : "Kein serieller Port gefunden"
-
-                        onActivated: {
-                            appSettings.usbPort = currentText
-                        }
-                    }
-
-                    Label {
-                        text: "USB-Baudrate"
-                        color: window.ink
-                                        enabled: visible
-                                 && connectionTypeBox.currentIndex === 1
-                    }
-                    TextField {
-                        id: usbBaudField
-                        Layout.fillWidth: true
-                                        text: "115200"
-                        inputMethodHints: Qt.ImhDigitsOnly
-                        enabled: visible
-                                 && connectionTypeBox.currentIndex === 1
-                    }
-                }
-
-                VintageButton {
-                    Layout.alignment: Qt.AlignHCenter
-                    implicitWidth: false ? 210 : 230
-                    text: xdrClient.connected ? "VERBINDUNG TRENNEN" : "VERBINDEN"
-                    onClicked: window.connectOrDisconnect()
-                }
-
-                GroupBox {
-                    Layout.fillWidth: true
-                    Layout.leftMargin: 20
-                    Layout.rightMargin: 20
-                    title: "Empfang"
-
-                    GridLayout {
-                        anchors.fill: parent
-                        columns: false ? 1 : 2
-                        columnSpacing: 12
-                        rowSpacing: false ? 6 : 10
-
-                        Label { text: "Betriebsart" }
-                        Switch {
-                            enabled: xdrClient.ready && !xdrClient.seeking
-                            text: checked ? "Mono erzwungen" : "Stereo-Automatik"
-                            checked: xdrClient.forcedMono
-                            onToggled: {
-                                if (checked !== xdrClient.forcedMono)
-                                    xdrClient.setForcedMono(checked)
-                            }
-                        }
-
-                        Label { text: "Bandbreite" }
-                        ComboBox {
-                            Layout.fillWidth: true
-                            enabled: xdrClient.ready && !xdrClient.seeking
-                            model: ["Auto", "56 kHz", "64 kHz", "72 kHz", "84 kHz",
-                                    "97 kHz", "114 kHz", "133 kHz", "151 kHz",
-                                    "168 kHz", "184 kHz", "200 kHz", "217 kHz",
-                                    "236 kHz", "254 kHz", "287 kHz", "311 kHz"]
-                            currentIndex: window.valueIndex(window.bandwidthValues,
-                                                            xdrClient.bandwidthSettingHz)
-                            onActivated: xdrClient.setBandwidth(
-                                             window.bandwidthValues[currentIndex])
-                        }
-
-                        Label { text: "De-Emphasis" }
-                        ComboBox {
-                            Layout.fillWidth: true
-                            enabled: xdrClient.ready
-                            model: ["50 µs", "75 µs", "0 µs"]
-                            currentIndex: xdrClient.deemphasis
-                            onActivated: xdrClient.setDeemphasis(currentIndex)
-                        }
-
-                        Label { text: "AGC-Schwelle" }
-                        ComboBox {
-                            Layout.fillWidth: true
-                            enabled: xdrClient.ready
-                            model: ["Höchste", "Hoch", "Mittel", "Niedrig"]
-                            currentIndex: xdrClient.agc
-                            onActivated: xdrClient.setAgc(currentIndex)
-                        }
-
-                        Label { text: "Signalverarbeitung" }
-                        ColumnLayout {
-                            spacing: 2
-
-                            CheckBox {
-                                enabled: xdrClient.ready
-                                text: "Channel Equalizer"
-                                checked: xdrClient.channelEqualizer
-                                onToggled: {
-                                    if (checked !==
-                                        xdrClient.channelEqualizer) {
-                                        xdrClient.setChannelEqualizer(
-                                            checked)
-                                    }
-                                }
-                            }
-
-                            CheckBox {
-                                enabled: xdrClient.ready
-                                text: "iMS / Multipath"
-                                checked:
-                                    xdrClient.multipathSuppression
-                                onToggled: {
-                                    if (checked !==
-                                        xdrClient.multipathSuppression) {
-                                        xdrClient
-                                            .setMultipathSuppression(
-                                                checked)
-                                    }
-                                }
-                            }
-                        }
-
-                        Label {
-                            text: "RDS-Fehlerkorrektur"
-                        }
-
-                        Switch {
-                            id: rdsErrorCorrectionSwitch
-
-                            text: checked
-                                  ? "Fehlerstatus 0,1,2"
-                                  : "Fehlerstatus nur 0"
-
-                            checked:
-                                xdrClient.rdsErrorCorrectionEnabled
-
-                            onToggled: {
-                                appSettings.rdsErrorCorrectionEnabled =
-                                    checked
-
-                                if (checked !==
-                                    xdrClient.rdsErrorCorrectionEnabled) {
-
-                                    xdrClient
-                                        .setRdsErrorCorrectionEnabled(
-                                            checked)
-                                }
-                            }
-                        }
-
-                    }
-                }
-
-                GroupBox {
-                    Layout.fillWidth: true
-                    Layout.leftMargin: 20
-                    Layout.rightMargin: 20
-                    title: "Abstimmung"
-
-                    GridLayout {
-                        anchors.fill: parent
-                        columns: false ? 1 : 2
-                        columnSpacing: 12
-                        rowSpacing: false ? 6 : 10
-
-                        Label { text: "Kleiner Schritt" }
-                        ComboBox {
-                            Layout.fillWidth: true
-                            enabled: !xdrClient.seeking
-                            model: ["50 kHz", "100 kHz", "200 kHz"]
-                            currentIndex: window.valueIndex(window.smallStepValues,
-                                                            xdrClient.smallStepKhz)
-                            onActivated: xdrClient.setSmallStepKhz(
-                                             window.smallStepValues[currentIndex])
-                        }
-
-                        Label { text: "Großer Schritt" }
-                        ComboBox {
-                            Layout.fillWidth: true
-                            enabled: !xdrClient.seeking
-                            model: ["500 kHz", "1 MHz", "2 MHz"]
-                            currentIndex: window.valueIndex(window.largeStepValues,
-                                                            xdrClient.largeStepKhz)
-                            onActivated: xdrClient.setLargeStepKhz(
-                                             window.largeStepValues[currentIndex])
-                        }
-
-                        Label { text: "Suchempfindlichkeit" }
-                        SpinBox {
-                            from: 1
-                            to: 30
-                            value: xdrClient.seekThreshold
-                            editable: true
-                            enabled: !xdrClient.seeking
-                            onValueModified: xdrClient.setSeekThreshold(value)
-                        }
-
-                        Label {
-                            text: "1 = streng · 30 = empfindlich"
-                            opacity: 0.7
-                        }
-                    }
-                }
-
-                GroupBox {
-                    Layout.fillWidth: true
-                    Layout.leftMargin: 20
-                    Layout.rightMargin: 20
-                    title: "Senderspeicher"
-
-                    ColumnLayout {
-                        anchors.fill: parent
-                        spacing: false ? 5 : 7
-
-                        Repeater {
-                            model: 6
-
-                            delegate: RowLayout {
-                                required property int index
-                                Layout.fillWidth: true
-                                spacing: 7
-
-                                Label {
-                                    Layout.preferredWidth: 28
-                                    text: "M" + (index + 1)
-                                    color: window.ink
-                                    font.bold: true
-                                }
-
-                                Label {
-                                    Layout.fillWidth: true
-                                    text: window.presetFrequencyText(index)
-                                    color: window.presetFrequency(index) > 0
-                                           ? window.ink
-                                           : window.mutedInk
-                                    font.family: "monospace"
-                                    elide: Text.ElideRight
-                                }
-
-                                Button {
-                                    text: "Speichern"
-                                    enabled: xdrClient.ready
-                                             && !xdrClient.seeking
-                                    onClicked:
-                                        window.storePreset(index)
-                                }
-
-                                Button {
-                                    text: "Löschen"
-                                    enabled:
-                                        window.presetFrequency(index) > 0
-                                    onClicked:
-                                        window.clearPreset(index)
-                                }
-                            }
-                        }
-
-                        Label {
-                            Layout.fillWidth: true
-                            text: "Kurzen Zeiger in der Skala antippen, "
-                                  + "um den Sender aufzurufen."
-                            color: window.mutedInk
-                            font.pixelSize: window.smallFontSize
-                            wrapMode: Text.WordWrap
-                        }
-                    }
-                }
-
-
-
-                Label {
-                    Layout.fillWidth: true
-                    Layout.leftMargin: 20
-                    Layout.rightMargin: 20
-                    text: "Letzte Antwort: " + (xdrClient.lastLine || "–")
-                    color: window.mutedInk
-                    wrapMode: Text.WrapAnywhere
-                    font.pixelSize: 12
-                }
-
-                Item { Layout.preferredHeight: 20 }
-            }
-        }
-    }
 
     ScrollView {
         id: mainScroll
@@ -877,13 +379,13 @@ visible: true
                                 textColor: window.ink
                                 pointerColor: window.amber
                                 presetFrequenciesKhz:
-                                    window.stationPresetFrequencies
+                                    settingsDrawer.stationPresetFrequencies
                                 presetPointerColor: "#725224"
                                 activePresetPointerColor: window.amber
 
                                 onPresetActivated:
                                     function(index, frequencyKhz) {
-                                        window.recallPreset(index)
+                                        settingsDrawer.recallPreset(index)
                                     }
                             }
 
