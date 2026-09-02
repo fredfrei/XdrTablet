@@ -25,3 +25,6 @@ build-appimage/
 dist/
 .appimage-tools/
 packaging/
+
+# Entpackte AppImage
+squashfs-root/

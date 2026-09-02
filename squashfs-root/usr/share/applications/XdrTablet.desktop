@@ -1,9 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=XdrTablet
-Comment=TCP-Client für einen XDR-kompatiblen FM-Tuner
-Exec=XdrTablet
-Icon=XdrTablet
-Terminal=false
-Categories=AudioVideo;Audio;Network;
-StartupNotify=true
