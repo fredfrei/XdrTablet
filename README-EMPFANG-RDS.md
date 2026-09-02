@@ -228,3 +228,4 @@ Der RDS-Teil von XdrTablet unterstützt derzeit:
 ### Noch offen
 
 viel zu viel
+### Der Text wurde mit KI erstellt
